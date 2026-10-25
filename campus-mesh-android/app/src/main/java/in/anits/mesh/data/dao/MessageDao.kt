@@ -26,4 +26,7 @@ interface MessageDao {
 
     @Query("SELECT * FROM table_messages WHERE message_uuid = :uuid LIMIT 1")
     suspend fun getMessageByUuid(uuid: String): MessageEntity?
+
+    @Query("DELETE FROM table_messages WHERE message_uuid LIKE 'init_%' OR payload_bytes LIKE '%stairwell%' OR payload_bytes LIKE '%loud and clear%' OR payload_bytes LIKE '%Welcome to ANITS%'")
+    suspend fun purgeBotMessages()
 }

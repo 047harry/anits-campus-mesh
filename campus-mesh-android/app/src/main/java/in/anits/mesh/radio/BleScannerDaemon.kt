@@ -6,6 +6,7 @@ import android.bluetooth.le.*
 import android.content.Context
 import android.os.ParcelUuid
 import android.util.Log
+import `in`.anits.mesh.data.UserManager
 import `in`.anits.mesh.data.dao.PeerDao
 import `in`.anits.mesh.data.entity.PeerEntity
 import `in`.anits.mesh.model.UserRole
@@ -13,6 +14,7 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import java.nio.charset.StandardCharsets
 import java.util.UUID
 
 /**
@@ -23,13 +25,14 @@ class BleScannerDaemon(
     private val context: Context,
     private val bluetoothAdapter: BluetoothAdapter?,
     private val peerDao: PeerDao,
-    private var localNodeIdHex: String,
+    private var localRollNumber: String,
     private val coroutineScope: CoroutineScope,
     private val onPeerDiscovered: ((PeerEntity, String) -> Unit)? = null
 ) {
     companion object {
         private const val TAG = "BleScanner"
         val MESH_SERVICE_UUID: UUID = UUID.fromString("0000FEF1-0000-1000-8000-00805F9B34FB")
+        val MESH_CHAR_UUID: UUID = UUID.fromString("0000FEF2-0000-1000-8000-00805F9B34FB")
         val MESH_PARCEL_UUID: ParcelUuid = ParcelUuid(MESH_SERVICE_UUID)
         const val ANITS_MANUFACTURER_ID = 0x02E5
     }
@@ -55,8 +58,8 @@ class BleScannerDaemon(
         }
     }
 
-    fun setLocalNodeIdHex(nodeIdHex: String) {
-        localNodeIdHex = nodeIdHex
+    fun setLocalRollNumber(rollNumber: String) {
+        localRollNumber = rollNumber
     }
 
     @SuppressLint("MissingPermission")
@@ -107,7 +110,7 @@ class BleScannerDaemon(
     private fun handleScanResult(result: ScanResult) {
         val record = result.scanRecord ?: return
         val mfgData = record.getManufacturerSpecificData(ANITS_MANUFACTURER_ID) ?: return
-        if (mfgData.size < 15) return
+        if (mfgData.size < 5) return
 
         coroutineScope.launch(Dispatchers.IO) {
             try {
@@ -115,20 +118,24 @@ class BleScannerDaemon(
                 val roleByte = mfgData[1]
                 val crisisFlag = mfgData[2]
 
-                // Extract fixed 12-byte node ID
-                val nodeIdBytes = mfgData.sliceArray(3 until 15)
-                val nodeIdHex = nodeIdBytes.joinToString("") { "%02x".format(it) }
+                // Extract Roll Number directly from beacon payload!
+                val rollLen = mfgData[3].toInt().coerceIn(1, minOf(14, mfgData.size - 4))
+                val rollNumber = String(mfgData, 4, rollLen, StandardCharsets.UTF_8).trim()
+
+                if (rollNumber.isBlank()) return@launch
 
                 // Ignore packets originating from this local device!
-                if (nodeIdHex.equals(localNodeIdHex, ignoreCase = true)) {
+                if (rollNumber.equals(localRollNumber, ignoreCase = true)) {
                     return@launch
                 }
 
                 val role = UserRole.fromByte(roleByte)
+                val summary = UserManager.resolvePeer(rollNumber, roleByte)
+
                 val peer = PeerEntity(
-                    nodeId = nodeIdHex,
+                    nodeId = rollNumber,
                     macAddress = result.device.address ?: "00:00:00:00:00:00",
-                    rollNumber = null,
+                    rollNumber = rollNumber,
                     userRole = roleByte,
                     isTrusted = (roleByte <= UserRole.FACULTY_WARDEN.code),
                     rssi = result.rssi,
@@ -137,9 +144,9 @@ class BleScannerDaemon(
                 )
 
                 peerDao.upsertPeer(peer)
-                Log.i(TAG, "🎉 FOUND PHYSICAL PEER! Node=$nodeIdHex, Role=${role.title}, RSSI=${result.rssi}dBm")
+                Log.i(TAG, "🎉 FOUND PHYSICAL PEER! Roll=${summary.rollNumber}, Name=${summary.fullName}, RSSI=${result.rssi}dBm")
 
-                onPeerDiscovered?.invoke(peer, "Discovered ${role.title} (${result.rssi} dBm)")
+                onPeerDiscovered?.invoke(peer, "Discovered ${summary.fullName} (${summary.rollNumber})")
 
                 if (crisisFlag.toInt() == 0x01 && !_isCrisisMode.value) {
                     setCrisisMode(true)

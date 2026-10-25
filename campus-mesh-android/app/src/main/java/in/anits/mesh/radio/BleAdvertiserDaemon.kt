@@ -10,16 +10,17 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.nio.ByteBuffer
+import java.nio.charset.StandardCharsets
 
 /**
  * Real Hardware BLE Background Advertiser Daemon.
- * Broadcasts node presence, role badges, and crisis alerts in 20-byte manufacturer data.
+ * Broadcasts node presence, role badges, crisis alerts, and ROLL NUMBER in 20-byte manufacturer data.
  */
 class BleAdvertiserDaemon(
     private val context: Context,
     private val bluetoothAdapter: BluetoothAdapter?,
-    private var localNodeId: ByteArray,
     private var localRole: UserRole,
+    private var localRollNumber: String,
     private val coroutineScope: CoroutineScope
 ) {
     companion object {
@@ -34,12 +35,12 @@ class BleAdvertiserDaemon(
     private val advertiseCallback = object : AdvertiseCallback() {
         override fun onStartSuccess(settingsInEffect: AdvertiseSettings?) {
             isAdvertising = true
-            Log.i(TAG, "✓ BLE Advertising ACTIVE: Role=${localRole.title}, Power=${settingsInEffect?.txPowerLevel}")
+            Log.i(TAG, "✓ BLE Advertising ACTIVE: Roll=$localRollNumber, Role=${localRole.title}")
         }
 
         override fun onStartFailure(errorCode: Int) {
             isAdvertising = false
-            Log.e(TAG, "✗ BLE Advertising FAILED with code $errorCode (1=TooLarge, 2=TooMany, 3=AlreadyStarted, 4=InternalErr, 5=Unsupported)")
+            Log.e(TAG, "✗ BLE Advertising FAILED with code $errorCode")
         }
     }
 
@@ -73,10 +74,10 @@ class BleAdvertiserDaemon(
     }
 
     @SuppressLint("MissingPermission")
-    fun updateIdentity(newNodeId: ByteArray, newRole: UserRole) {
-        localNodeId = newNodeId
+    fun updateIdentity(newRole: UserRole, newRollNumber: String) {
         localRole = newRole
-        Log.i(TAG, "Updating advertising identity to Role=${newRole.title}")
+        localRollNumber = newRollNumber
+        Log.i(TAG, "Updating advertising identity to Roll=$newRollNumber, Role=${newRole.title}")
         if (isAdvertising) {
             stop()
             start()
@@ -113,13 +114,20 @@ class BleAdvertiserDaemon(
             buffer.put(localRole.code) // Byte 1: Stakeholder Role Code (0..5)
             buffer.put(if (isSosActive) 0x01.toByte() else 0x00.toByte()) // Byte 2: Crisis / SOS Flag
 
-            // Bytes 3..14: Fixed 12-Byte Node ID Prefix
-            val idSlice = ByteArray(12)
-            System.arraycopy(localNodeId, 0, idSlice, 0, minOf(localNodeId.size, 12))
-            buffer.put(idSlice)
+            // Bytes 3..17: Roll Number payload (Length byte + up to 14 ASCII characters)
+            val rollBytes = localRollNumber.toByteArray(StandardCharsets.UTF_8)
+            val rollLen = minOf(rollBytes.size, 14)
+            buffer.put(rollLen.toByte()) // Byte 3: Roll number length
+            buffer.put(rollBytes, 0, rollLen) // Bytes 4..(4+rollLen-1)
 
-            buffer.put(84.toByte()) // Byte 15: Battery level
-            buffer.putInt(++sequenceNumber) // Bytes 16..19: Sequence counter
+            // Pad remaining bytes up to index 18
+            val remainingPad = 18 - buffer.position()
+            for (i in 0 until remainingPad) {
+                buffer.put(0.toByte())
+            }
+
+            buffer.put(84.toByte()) // Byte 18: Battery level
+            buffer.put((++sequenceNumber % 256).toByte()) // Byte 19: Sequence counter
 
             val data = AdvertiseData.Builder()
                 .addManufacturerData(BleScannerDaemon.ANITS_MANUFACTURER_ID, buffer.array())

@@ -7,7 +7,6 @@ import android.util.Log
 import `in`.anits.mesh.data.MeshDatabase
 import `in`.anits.mesh.data.UserManager
 import `in`.anits.mesh.data.entity.MessageEntity
-import `in`.anits.mesh.data.entity.PeerEntity
 import `in`.anits.mesh.data.entity.SeenCacheEntity
 import `in`.anits.mesh.model.MeshPacket
 import `in`.anits.mesh.model.PacketType
@@ -23,7 +22,7 @@ import java.nio.charset.StandardCharsets
 
 /**
  * Unified Hardware Transport Coordinator.
- * Controls real physical BLE scanning and advertising between devices.
+ * Controls real physical BLE scanning, advertising, and LAN UDP transport between devices.
  */
 class RadioCoordinator(
     private val context: Context,
@@ -32,6 +31,8 @@ class RadioCoordinator(
 ) {
     companion object {
         private const val TAG = "RadioCoordinator"
+        @Volatile
+        var instance: RadioCoordinator? = null
     }
 
     private val bluetoothAdapter: BluetoothAdapter? by lazy {
@@ -42,14 +43,14 @@ class RadioCoordinator(
     private val _peerEvents = MutableSharedFlow<String>(extraBufferCapacity = 16)
     val peerEvents: SharedFlow<String> = _peerEvents.asSharedFlow()
 
-    private var localNodeIdBytes: ByteArray = getCanonicalNodeId()
     private var localRole: UserRole = UserManager.getProfile(context)?.role ?: UserRole.STUDENT_OCCUPANT
+    private var localRollNumber: String = UserManager.getProfile(context)?.rollNumber ?: "A23126551000"
 
     private val bleScanner: BleScannerDaemon = BleScannerDaemon(
         context = context,
         bluetoothAdapter = bluetoothAdapter,
         peerDao = database.peerDao(),
-        localNodeIdHex = localNodeIdBytes.take(12).toByteArray().joinToString("") { "%02x".format(it) },
+        localRollNumber = localRollNumber,
         coroutineScope = coroutineScope,
         onPeerDiscovered = { peer, logMessage ->
             _peerEvents.tryEmit(logMessage)
@@ -59,43 +60,45 @@ class RadioCoordinator(
     private val bleAdvertiser: BleAdvertiserDaemon = BleAdvertiserDaemon(
         context = context,
         bluetoothAdapter = bluetoothAdapter,
-        localNodeId = localNodeIdBytes,
         localRole = localRole,
+        localRollNumber = localRollNumber,
         coroutineScope = coroutineScope
     )
 
-    private val wifiAwareManager: WifiAwareSessionManager = WifiAwareSessionManager(
+    private val udpTransport: UdpMeshTransport = UdpMeshTransport(
         context = context,
-        coroutineScope = coroutineScope,
-        onPacketReceived = { packet -> processIncomingPacket(packet) }
+        database = database,
+        coroutineScope = coroutineScope
     )
 
     private val _isMeshActive = MutableStateFlow(false)
     val isMeshActive: StateFlow<Boolean> = _isMeshActive.asStateFlow()
 
+    init {
+        instance = this
+    }
+
     fun updateProfile() {
         val profile = UserManager.getProfile(context)
         localRole = profile?.role ?: UserRole.STUDENT_OCCUPANT
-        localNodeIdBytes = getCanonicalNodeId()
+        localRollNumber = profile?.rollNumber ?: "A23126551000"
 
-        val idHex = localNodeIdBytes.take(12).toByteArray().joinToString("") { "%02x".format(it) }
-        bleScanner.setLocalNodeIdHex(idHex)
-        bleAdvertiser.updateIdentity(localNodeIdBytes, localRole)
-        Log.i(TAG, "Coordinator updated profile: Role=${localRole.title}, ID=$idHex")
+        bleScanner.setLocalRollNumber(localRollNumber)
+        bleAdvertiser.updateIdentity(localRole, localRollNumber)
+        Log.i(TAG, "Coordinator updated profile: Roll=$localRollNumber, Role=${localRole.title}")
     }
 
     fun startMeshServices() {
+        instance = this
         if (_isMeshActive.value) return
         _isMeshActive.value = true
 
         updateProfile()
         bleScanner.start()
         bleAdvertiser.start()
+        udpTransport.start()
 
-        if (wifiAwareManager.isSupported) {
-            wifiAwareManager.start()
-        }
-        Log.i(TAG, "Hardware Mesh Services started successfully")
+        Log.i(TAG, "Hardware Mesh Services (BLE + UDP) started successfully")
     }
 
     fun stopMeshServices() {
@@ -104,8 +107,17 @@ class RadioCoordinator(
 
         bleScanner.stop()
         bleAdvertiser.stop()
-        wifiAwareManager.stop()
+        udpTransport.stop()
         Log.i(TAG, "Hardware Mesh Services stopped")
+    }
+
+    /**
+     * Transmits a genuine chat message across the mesh radio and local subnet.
+     */
+    fun transmitChatMessage(entity: MessageEntity, jsonPayload: String) {
+        coroutineScope.launch(Dispatchers.IO) {
+            udpTransport.broadcastJson(jsonPayload)
+        }
     }
 
     fun broadcastSosEmergency(packet: MeshPacket) {
@@ -128,43 +140,5 @@ class RadioCoordinator(
             )
             database.messageDao().insertMessage(entity)
         }
-    }
-
-    private fun processIncomingPacket(packet: MeshPacket) {
-        coroutineScope.launch(Dispatchers.IO) {
-            val uuidStr = packet.messageUuid.toString()
-            if (database.seenCacheDao().isSeen(uuidStr)) return@launch
-
-            database.seenCacheDao().markSeen(
-                SeenCacheEntity(
-                    messageUuid = uuidStr,
-                    receivedTimestamp = System.currentTimeMillis()
-                )
-            )
-
-            val entity = MessageEntity(
-                messageUuid = uuidStr,
-                packetType = packet.packetType.code,
-                sourceId = packet.sourceNodeId.joinToString("") { "%02x".format(it) },
-                destId = packet.destinationNodeId.joinToString("") { "%02x".format(it) },
-                payloadBytes = packet.payload,
-                isEncrypted = packet.isEncrypted,
-                signatureBytes = packet.ed25519Signature,
-                hopCount = (packet.initialTtl - packet.remainingTtl) + 1,
-                remainingTtl = packet.remainingTtl - 1,
-                deliveryStatus = "DELIVERED",
-                createdEpoch = packet.timestampEpochMs
-            )
-            database.messageDao().insertMessage(entity)
-        }
-    }
-
-    private fun getCanonicalNodeId(): ByteArray {
-        val profile = UserManager.getProfile(context)
-        val nodeIdStr = profile?.nodeId ?: "node_default00"
-        val bytes = ByteArray(16)
-        val strBytes = nodeIdStr.toByteArray(StandardCharsets.UTF_8)
-        System.arraycopy(strBytes, 0, bytes, 0, minOf(strBytes.size, 16))
-        return bytes
     }
 }

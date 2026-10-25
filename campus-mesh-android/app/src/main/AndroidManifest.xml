@@ -10,7 +10,7 @@
         android:required="true" />
     <uses-feature
         android:name="android.hardware.wifi.aware"
-        android:required="true" />
+        android:required="false" />
 
     <!-- Bluetooth Low Energy (BLE) Permissions -->
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
