@@ -3,7 +3,9 @@ package `in`.anits.mesh.viewmodel
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import android.net.Uri
 import `in`.anits.mesh.crypto.CryptoEngine
+import `in`.anits.mesh.util.ImageCompressor
 import `in`.anits.mesh.data.CampusUserSummary
 import `in`.anits.mesh.data.MeshDatabase
 import `in`.anits.mesh.data.UserManager
@@ -41,6 +43,7 @@ data class MeshChatMessage(
     val senderRoll: String,
     val senderRole: UserRole,
     val text: String,
+    val imageBase64: String? = null,
     val isOutgoing: Boolean,
     val timestamp: String,
     val deliveryStatus: String, // 'DELIVERED', 'RELAYING'
@@ -137,6 +140,85 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
+     * Compresses and transmits a photo across the campus mesh network.
+     * Encrypts both caption and photo for private 1-to-1 conversations.
+     */
+    fun sendPhotoMessage(target: ChatConversation, imageUri: Uri, caption: String = "") {
+        val base64 = ImageCompressor.compressUriToBase64(getApplication(), imageUri) ?: return
+        val currentProfile = UserManager.getProfile(getApplication())
+        val sender = currentProfile?.fullName ?: "You"
+        val senderRoll = currentProfile?.rollNumber ?: "A23126551000"
+        val senderRole = currentProfile?.role ?: UserRole.STUDENT_OCCUPANT
+        val nowEpoch = System.currentTimeMillis()
+        val msgUuid = UUID.randomUUID().toString()
+
+        val isBroadcast = target.isBroadcast
+        val destRoll = if (isBroadcast) "ALL PEERS" else target.rollNumber
+
+        val (wireText, wireImage) = if (!isBroadcast) {
+            val keySeed = CryptoEngine.derivePairwiseKey(senderRoll, target.rollNumber)
+            val encText = if (caption.isNotBlank()) CryptoEngine.encryptAesGcm(caption.trim(), keySeed) else ""
+            val encImg = CryptoEngine.encryptAesGcm(base64, keySeed)
+            Pair(encText, encImg)
+        } else {
+            Pair(caption.trim(), base64)
+        }
+
+        val wireJson = JSONObject().apply {
+            put("uuid", msgUuid)
+            put("packetType", PacketType.ROUTINE_CHAT.code)
+            put("text", wireText)
+            put("image", wireImage)
+            put("mediaType", "IMAGE")
+            put("senderName", sender)
+            put("senderRoll", senderRoll)
+            put("senderRole", senderRole.name)
+            put("destRoll", destRoll)
+            put("isEncrypted", !isBroadcast)
+            put("ttl", 7)
+            put("hopCount", 0)
+            put("relayedBy", "")
+            put("timestampEpoch", nowEpoch)
+        }
+        val wireJsonStr = wireJson.toString()
+
+        val localJson = JSONObject().apply {
+            put("uuid", msgUuid)
+            put("packetType", PacketType.ROUTINE_CHAT.code)
+            put("text", caption.trim())
+            put("image", base64)
+            put("mediaType", "IMAGE")
+            put("senderName", sender)
+            put("senderRoll", senderRoll)
+            put("senderRole", senderRole.name)
+            put("destRoll", destRoll)
+            put("isEncrypted", !isBroadcast)
+            put("ttl", 7)
+            put("hopCount", 0)
+            put("relayedBy", "")
+            put("timestampEpoch", nowEpoch)
+        }
+
+        viewModelScope.launch(Dispatchers.IO) {
+            val entity = MessageEntity(
+                messageUuid = msgUuid,
+                packetType = PacketType.ROUTINE_CHAT.code,
+                sourceId = senderRoll,
+                destId = if (isBroadcast) "BROADCAST" else target.conversationId,
+                payloadBytes = localJson.toString().toByteArray(StandardCharsets.UTF_8),
+                isEncrypted = !isBroadcast,
+                signatureBytes = ByteArray(64),
+                hopCount = 0,
+                remainingTtl = 7,
+                deliveryStatus = "DELIVERED",
+                createdEpoch = nowEpoch
+            )
+            messageDao.insertMessage(entity)
+            RadioCoordinator.instance?.transmitChatMessage(entity, wireJsonStr)
+        }
+    }
+
+    /**
      * Sends a genuine user message across the multi-hop campus mesh.
      * Encrypts private 1-to-1 chats with AES-256-GCM.
      */
@@ -219,7 +301,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             val jsonStr = String(entity.payloadBytes, StandardCharsets.UTF_8)
             val json = JSONObject(jsonStr)
             val text = json.optString("text", "")
-            if (text.isBlank()) return null
+            val imageBase64 = json.optString("image", "").ifBlank { null }
+            if (text.isBlank() && imageBase64 == null) return null
 
             val senderName = json.optString("senderName", "User")
             val senderRoll = json.optString("senderRoll", entity.sourceId)
@@ -250,6 +333,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 senderRoll = senderRoll,
                 senderRole = senderRole,
                 text = text,
+                imageBase64 = imageBase64,
                 isOutgoing = isOutgoing,
                 timestamp = timeStr,
                 deliveryStatus = entity.deliveryStatus,

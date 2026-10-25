@@ -182,8 +182,15 @@ class UdpMeshTransport(
                 // Decrypt payload if end-to-end encrypted for 1-to-1 private chat
                 if (isEncrypted && !isBroadcast) {
                     val keySeed = CryptoEngine.derivePairwiseKey(senderRoll, myRoll)
-                    rawText = CryptoEngine.decryptAesGcm(rawText, keySeed)
-                    json.put("text", rawText) // Store decrypted content locally
+                    if (rawText.isNotBlank()) {
+                        rawText = CryptoEngine.decryptAesGcm(rawText, keySeed)
+                        json.put("text", rawText) // Store decrypted content locally
+                    }
+                    val encImage = json.optString("image", "")
+                    if (encImage.isNotBlank()) {
+                        val decImage = CryptoEngine.decryptAesGcm(encImage, keySeed)
+                        json.put("image", decImage)
+                    }
                 }
 
                 val finalHopCount = if (hopCount == 0) 1 else (hopCount + 1)

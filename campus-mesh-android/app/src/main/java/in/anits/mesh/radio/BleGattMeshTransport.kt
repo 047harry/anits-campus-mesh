@@ -27,8 +27,8 @@ class BleGattMeshTransport(
 ) {
     companion object {
         private const val TAG = "BleGattMeshTransport"
-        val MESH_SERVICE_UUID: UUID = UUID.fromString("0000FE60-0000-1000-8000-00805F9B34FB")
-        val MESH_CHAR_UUID: UUID = UUID.fromString("0000FE61-0000-1000-8000-00805F9B34FB")
+        val MESH_SERVICE_UUID: UUID = BleScannerDaemon.MESH_SERVICE_UUID
+        val MESH_CHAR_UUID: UUID = BleScannerDaemon.MESH_CHAR_UUID
     }
 
     private var bluetoothGattServer: BluetoothGattServer? = null
@@ -179,8 +179,15 @@ class BleGattMeshTransport(
 
                 if (isEncrypted && !isBroadcast) {
                     val keySeed = CryptoEngine.derivePairwiseKey(senderRoll, myRoll)
-                    rawText = CryptoEngine.decryptAesGcm(rawText, keySeed)
-                    json.put("text", rawText)
+                    if (rawText.isNotBlank()) {
+                        rawText = CryptoEngine.decryptAesGcm(rawText, keySeed)
+                        json.put("text", rawText)
+                    }
+                    val encImage = json.optString("image", "")
+                    if (encImage.isNotBlank()) {
+                        val decImage = CryptoEngine.decryptAesGcm(encImage, keySeed)
+                        json.put("image", decImage)
+                    }
                 }
 
                 val finalHopCount = if (hopCount == 0) 1 else (hopCount + 1)

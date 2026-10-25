@@ -28,6 +28,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.viewmodel.compose.viewModel
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
+import androidx.compose.material.icons.filled.AddPhotoAlternate
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.ui.layout.ContentScale
+import `in`.anits.mesh.util.ImageCompressor
 import `in`.anits.mesh.data.UserManager
 import `in`.anits.mesh.model.UserRole
 import `in`.anits.mesh.viewmodel.ChatConversation
@@ -78,7 +86,8 @@ fun ChatScreen(
                 conversation = currentConv,
                 messages = convMessages,
                 onBack = { viewModel.closeConversation() },
-                onSendMessage = { text -> viewModel.sendMessage(currentConv, text) }
+                onSendMessage = { text -> viewModel.sendMessage(currentConv, text) },
+                onSendPhoto = { uri, caption -> viewModel.sendPhotoMessage(currentConv, uri, caption) }
             )
         }
 
@@ -525,9 +534,18 @@ fun WhatsAppChatRoomView(
     conversation: ChatConversation,
     messages: List<MeshChatMessage>,
     onBack: () -> Unit,
-    onSendMessage: (String) -> Unit
+    onSendMessage: (String) -> Unit,
+    onSendPhoto: (Uri, String) -> Unit = { _, _ -> }
 ) {
     var textInput by remember { mutableStateOf("") }
+    var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
+    var fullScreenImageBase64 by remember { mutableStateOf<String?>(null) }
+
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        selectedImageUri = uri
+    }
 
     Column(
         modifier = Modifier
@@ -611,8 +629,40 @@ fun WhatsAppChatRoomView(
             items(messages) { msg ->
                 WhatsAppBubble(
                     message = msg,
-                    isBroadcastRoom = conversation.isBroadcast
+                    isBroadcastRoom = conversation.isBroadcast,
+                    onImageClick = { base64 -> fullScreenImageBase64 = base64 }
                 )
+            }
+        }
+
+        // Selected Photo Preview Banner
+        if (selectedImageUri != null) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(WhatsAppIncoming)
+                    .border(1.dp, WhatsAppGreen.copy(alpha = 0.5f), RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp))
+                    .padding(horizontal = 14.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Default.AddPhotoAlternate, contentDescription = null, tint = WhatsAppGreen, modifier = Modifier.size(20.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Photo Selected",
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "Will be compressed (~20KB) & encrypted for mesh",
+                        color = WhatsAppGreen,
+                        fontSize = 10.sp
+                    )
+                }
+                IconButton(onClick = { selectedImageUri = null }, modifier = Modifier.size(24.dp)) {
+                    Icon(Icons.Default.Close, contentDescription = "Remove", tint = WhatsAppTextMuted, modifier = Modifier.size(16.dp))
+                }
             }
         }
 
@@ -624,6 +674,21 @@ fun WhatsAppChatRoomView(
                 .padding(horizontal = 8.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // Photo Attachment Button
+            IconButton(
+                onClick = { photoPickerLauncher.launch("image/*") },
+                modifier = Modifier.size(40.dp)
+            ) {
+                Icon(
+                    Icons.Default.AddPhotoAlternate,
+                    contentDescription = "Attach Photo",
+                    tint = if (selectedImageUri != null) WhatsAppGreen else WhatsAppTextMuted,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.width(4.dp))
+
             OutlinedTextField(
                 value = textInput,
                 onValueChange = { textInput = it },
@@ -653,8 +718,12 @@ fun WhatsAppChatRoomView(
 
             IconButton(
                 onClick = {
-                    if (textInput.isNotBlank()) {
-                        onSendMessage(textInput)
+                    if (selectedImageUri != null) {
+                        onSendPhoto(selectedImageUri!!, textInput.trim())
+                        selectedImageUri = null
+                        textInput = ""
+                    } else if (textInput.isNotBlank()) {
+                        onSendMessage(textInput.trim())
                         textInput = ""
                     }
                 },
@@ -670,6 +739,44 @@ fun WhatsAppChatRoomView(
                 )
             }
         }
+
+        // Full Screen Image Preview Dialog
+        if (fullScreenImageBase64 != null) {
+            Dialog(onDismissRequest = { fullScreenImageBase64 = null }) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFF0F172A), shape = RoundedCornerShape(12.dp))
+                        .padding(12.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        val fullBmp = remember(fullScreenImageBase64) {
+                            ImageCompressor.base64ToComposeImageBitmap(fullScreenImageBase64!!)
+                        }
+                        if (fullBmp != null) {
+                            Image(
+                                bitmap = fullBmp,
+                                contentDescription = "Enlarged Mesh Photo",
+                                contentScale = ContentScale.Fit,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(max = 440.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Button(
+                            onClick = { fullScreenImageBase64 = null },
+                            colors = ButtonDefaults.buttonColors(containerColor = WhatsAppGreen),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text("Close Preview", color = Color.Black, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -679,7 +786,8 @@ fun WhatsAppChatRoomView(
 @Composable
 fun WhatsAppBubble(
     message: MeshChatMessage,
-    isBroadcastRoom: Boolean
+    isBroadcastRoom: Boolean,
+    onImageClick: (String) -> Unit = {}
 ) {
     val isOut = message.isOutgoing
     val bubbleColor = if (isOut) WhatsAppOutgoing else WhatsAppIncoming
@@ -736,13 +844,35 @@ fun WhatsAppBubble(
                     Spacer(modifier = Modifier.height(2.dp))
                 }
 
-                // Message Text
-                Text(
-                    text = message.text,
-                    color = Color.White,
-                    fontSize = 12.5.sp,
-                    lineHeight = 16.sp
-                )
+                // Mesh Photo Render
+                if (!message.imageBase64.isNullOrBlank()) {
+                    val composeBmp = remember(message.imageBase64) {
+                        ImageCompressor.base64ToComposeImageBitmap(message.imageBase64)
+                    }
+                    if (composeBmp != null) {
+                        Image(
+                            bitmap = composeBmp,
+                            contentDescription = "Mesh Photo",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 120.dp, max = 220.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { onImageClick(message.imageBase64) }
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                    }
+                }
+
+                // Message Text / Caption
+                if (message.text.isNotBlank()) {
+                    Text(
+                        text = message.text,
+                        color = Color.White,
+                        fontSize = 12.5.sp,
+                        lineHeight = 16.sp
+                    )
+                }
 
                 Spacer(modifier = Modifier.height(2.dp))
 

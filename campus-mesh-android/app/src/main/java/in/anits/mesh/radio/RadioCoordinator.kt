@@ -79,6 +79,13 @@ class RadioCoordinator(
         coroutineScope = coroutineScope
     )
 
+    private val rfcommTransport: BluetoothRfcommTransport = BluetoothRfcommTransport(
+        context = context,
+        bluetoothAdapter = bluetoothAdapter,
+        database = database,
+        coroutineScope = coroutineScope
+    )
+
     private val _isMeshActive = MutableStateFlow(false)
     val isMeshActive: StateFlow<Boolean> = _isMeshActive.asStateFlow()
 
@@ -106,6 +113,7 @@ class RadioCoordinator(
         bleAdvertiser.start()
         udpTransport.start()
         bleGattTransport.start()
+        rfcommTransport.start()
 
         Log.i(TAG, "✓ Hardware Mesh Services (BLE GATT + BLE Beacon + LAN UDP) started successfully")
     }
@@ -118,6 +126,7 @@ class RadioCoordinator(
         bleAdvertiser.stop()
         udpTransport.stop()
         bleGattTransport.stop()
+        rfcommTransport.stop()
         Log.i(TAG, "Hardware Mesh Services stopped")
     }
 
@@ -129,16 +138,17 @@ class RadioCoordinator(
             // Layer 1: Instant local Wi-Fi / Hotspot LAN UDP Broadcast (< 5ms)
             udpTransport.broadcastJson(jsonPayload)
 
-            // Layer 2: Direct offline Bluetooth LE GATT delivery to active peers in range
+            // Layer 2: Direct offline Bluetooth RFCOMM & BLE GATT delivery to active peers
             try {
                 val peers = database.peerDao().getActivePeers(0L)
                 for (peer in peers) {
                     if (peer.macAddress.isNotBlank() && peer.macAddress != "00:00:00:00:00:00") {
+                        rfcommTransport.sendDirectMessage(peer.macAddress, jsonPayload)
                         bleGattTransport.sendDirectGattMessage(peer.macAddress, jsonPayload)
                     }
                 }
             } catch (e: Exception) {
-                Log.w(TAG, "BLE GATT dispatch note: " + e.message)
+                Log.w(TAG, "Bluetooth dispatch note: " + e.message)
             }
         }
     }
@@ -152,6 +162,7 @@ class RadioCoordinator(
                 val peers = database.peerDao().getActivePeers(0L)
                 for (peer in peers) {
                     if (peer.macAddress.isNotBlank() && peer.macAddress != "00:00:00:00:00:00") {
+                        rfcommTransport.sendDirectMessage(peer.macAddress, jsonPayload)
                         bleGattTransport.sendDirectGattMessage(peer.macAddress, jsonPayload)
                     }
                 }
