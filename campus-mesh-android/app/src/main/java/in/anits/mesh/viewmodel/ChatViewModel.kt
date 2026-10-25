@@ -3,8 +3,9 @@ package `in`.anits.mesh.viewmodel
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import `in`.anits.mesh.data.MeshDatabase
+import `in`.anits.mesh.crypto.CryptoEngine
 import `in`.anits.mesh.data.CampusUserSummary
+import `in`.anits.mesh.data.MeshDatabase
 import `in`.anits.mesh.data.UserManager
 import `in`.anits.mesh.data.entity.MessageEntity
 import `in`.anits.mesh.data.entity.PeerEntity
@@ -42,7 +43,9 @@ data class MeshChatMessage(
     val text: String,
     val isOutgoing: Boolean,
     val timestamp: String,
-    val deliveryStatus: String // 'DELIVERED', 'RELAYING'
+    val deliveryStatus: String, // 'DELIVERED', 'RELAYING'
+    val hopCount: Int = 1,
+    val relayedBy: String = ""
 )
 
 class ChatViewModel(application: Application) : AndroidViewModel(application) {
@@ -56,6 +59,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     // Active open conversation (null = Inbox list view, not null = inside chat room)
     private val _activeConversation = MutableStateFlow<ChatConversation?>(null)
     val activeConversation: StateFlow<ChatConversation?> = _activeConversation.asStateFlow()
+
+    // Manually created custom private chats (e.g., student in MECH selected via Directory Picker)
+    private val _customConversations = MutableStateFlow<Map<String, ChatConversation>>(emptyMap())
 
     // Discovered physical peers in BLE range
     val activePeers: StateFlow<List<PeerEntity>> = peerDao.getActivePeersFlow(0L)
@@ -75,9 +81,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     val conversations: StateFlow<List<ChatConversation>> = combine(
         activePeers,
         UserManager.campusDirectory,
-        messages
-    ) { peers, directory, msgList ->
-        buildConversationList(peers, directory, msgList)
+        messages,
+        _customConversations
+    ) { peers, directory, msgList, customMap ->
+        buildConversationList(peers, directory, msgList, customMap)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     init {
@@ -100,8 +107,37 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Sends a genuine user message to the destination or broadcast channel.
-     * Persists locally to Room and transmits over radio & LAN mesh.
+     * Opens a private 1-on-1 chat targeting any student/faculty across campus blocks
+     * by department and roll number.
+     */
+    fun startNewPrivateChat(department: String, rollNumber: String, customName: String? = null) {
+        val cleanRoll = rollNumber.trim().uppercase()
+        if (cleanRoll.isBlank()) return
+
+        val summary = UserManager.resolvePeer(cleanRoll, UserRole.STUDENT_OCCUPANT.code)
+        val title = customName?.ifBlank { null } ?: summary.fullName.ifBlank { "Student ($cleanRoll)" }
+
+        val newConv = ChatConversation(
+            conversationId = cleanRoll,
+            title = title,
+            rollNumber = cleanRoll,
+            role = summary.role,
+            department = department.ifBlank { summary.department },
+            isBroadcast = false,
+            isOnlineInRange = false,
+            rssi = 0,
+            lastMessageText = "Tap to send encrypted multi-hop message",
+            lastMessageTimestamp = "New",
+            lastMessageDeliveryStatus = "DELIVERED"
+        )
+
+        _customConversations.update { it + (cleanRoll to newConv) }
+        _activeConversation.value = newConv
+    }
+
+    /**
+     * Sends a genuine user message across the multi-hop campus mesh.
+     * Encrypts private 1-to-1 chats with AES-256-GCM.
      */
     fun sendMessage(target: ChatConversation, text: String) {
         if (text.isBlank()) return
@@ -112,36 +148,68 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val nowEpoch = System.currentTimeMillis()
         val msgUuid = UUID.randomUUID().toString()
 
-        val json = JSONObject().apply {
+        val isBroadcast = target.isBroadcast
+        val destRoll = if (isBroadcast) "ALL PEERS" else target.rollNumber
+
+        // Zero-Knowledge Encryption for Private Chats
+        val wireText = if (!isBroadcast) {
+            val keySeed = CryptoEngine.derivePairwiseKey(senderRoll, target.rollNumber)
+            CryptoEngine.encryptAesGcm(text.trim(), keySeed)
+        } else {
+            text.trim()
+        }
+
+        // Outbound Wire JSON (Relay nodes see only this encrypted packet)
+        val wireJson = JSONObject().apply {
+            put("uuid", msgUuid)
+            put("packetType", PacketType.ROUTINE_CHAT.code)
+            put("text", wireText)
+            put("senderName", sender)
+            put("senderRoll", senderRoll)
+            put("senderRole", senderRole.name)
+            put("destRoll", destRoll)
+            put("isEncrypted", !isBroadcast)
+            put("ttl", 7) // Multi-hop budget to span CSE -> MECH -> Clinic
+            put("hopCount", 0)
+            put("relayedBy", "")
+            put("timestampEpoch", nowEpoch)
+        }
+        val wireJsonStr = wireJson.toString()
+
+        // Local Entity JSON (stores decrypted text for the local sender)
+        val localJson = JSONObject().apply {
             put("uuid", msgUuid)
             put("packetType", PacketType.ROUTINE_CHAT.code)
             put("text", text.trim())
             put("senderName", sender)
             put("senderRoll", senderRoll)
             put("senderRole", senderRole.name)
-            put("destRoll", if (target.isBroadcast) "ALL PEERS" else target.rollNumber)
+            put("destRoll", destRoll)
+            put("isEncrypted", !isBroadcast)
+            put("ttl", 7)
+            put("hopCount", 0)
+            put("relayedBy", "")
             put("timestampEpoch", nowEpoch)
         }
-        val jsonStr = json.toString()
 
         viewModelScope.launch(Dispatchers.IO) {
             val entity = MessageEntity(
                 messageUuid = msgUuid,
                 packetType = PacketType.ROUTINE_CHAT.code,
                 sourceId = senderRoll,
-                destId = if (target.isBroadcast) "BROADCAST" else target.conversationId,
-                payloadBytes = jsonStr.toByteArray(StandardCharsets.UTF_8),
-                isEncrypted = false,
+                destId = if (isBroadcast) "BROADCAST" else target.conversationId,
+                payloadBytes = localJson.toString().toByteArray(StandardCharsets.UTF_8),
+                isEncrypted = !isBroadcast,
                 signatureBytes = ByteArray(64),
                 hopCount = 0,
-                remainingTtl = 5,
+                remainingTtl = 7,
                 deliveryStatus = "DELIVERED",
                 createdEpoch = nowEpoch
             )
             messageDao.insertMessage(entity)
 
             // Transmit over real mesh radio and local Wi-Fi / hotspot subnet
-            RadioCoordinator.instance?.transmitChatMessage(entity, jsonStr)
+            RadioCoordinator.instance?.transmitChatMessage(entity, wireJsonStr)
         }
     }
 
@@ -157,6 +225,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             val roleStr = json.optString("senderRole", UserRole.STUDENT_OCCUPANT.name)
             val senderRole = try { UserRole.valueOf(roleStr) } catch (e: Exception) { UserRole.STUDENT_OCCUPANT }
             val destRoll = json.optString("destRoll", entity.destId)
+
+            val hopCount = json.optInt("hopCount", entity.hopCount)
+            val relayedBy = json.optString("relayedBy", "")
 
             val isOutgoing = (senderRoll.isNotBlank() && senderRoll.equals(myRoll, ignoreCase = true))
                     || entity.sourceId.equals(myNodeId, ignoreCase = true)
@@ -180,7 +251,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 text = text,
                 isOutgoing = isOutgoing,
                 timestamp = timeStr,
-                deliveryStatus = entity.deliveryStatus
+                deliveryStatus = entity.deliveryStatus,
+                hopCount = if (hopCount == 0 && !isOutgoing) 1 else hopCount,
+                relayedBy = relayedBy
             )
         } catch (e: Exception) {
             null
@@ -190,7 +263,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private fun buildConversationList(
         peers: List<PeerEntity>,
         directory: Map<String, CampusUserSummary>,
-        msgList: List<MeshChatMessage>
+        msgList: List<MeshChatMessage>,
+        customMap: Map<String, ChatConversation>
     ): List<ChatConversation> {
         val list = mutableListOf<ChatConversation>()
         val myRoll = UserManager.getProfile(getApplication())?.rollNumber ?: ""
@@ -213,8 +287,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             )
         )
 
-        // 2. DISCOVERED PEERS (Real physical peers discovered in the mesh network)
         val handledConversations = mutableSetOf<String>()
+
+        // 2. DISCOVERED PEERS (Physical Direct Peers in BLE/Wi-Fi range)
         peers.forEach { peer ->
             val roll = peer.rollNumber?.ifBlank { null } ?: peer.nodeId
             if (roll.equals(myRoll, ignoreCase = true)) return@forEach
@@ -234,14 +309,30 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     isBroadcast = false,
                     isOnlineInRange = true,
                     rssi = peer.rssi,
-                    lastMessageText = lastMsg?.text ?: "In direct Bluetooth radio range",
+                    lastMessageText = lastMsg?.text ?: "In direct Bluetooth radio range (~3m)",
                     lastMessageTimestamp = lastMsg?.timestamp ?: "Now",
                     lastMessageDeliveryStatus = lastMsg?.deliveryStatus ?: "DELIVERED"
                 )
             )
         }
 
-        // 3. EXISTING CONVERSATIONS WITH MESSAGE HISTORY (When peer moves out of radio range)
+        // 3. CUSTOM USER-INITIATED MULTI-HOP PRIVATE CHATS
+        customMap.values.forEach { customConv ->
+            if (!handledConversations.contains(customConv.conversationId)) {
+                handledConversations.add(customConv.conversationId)
+                val pMsgs = msgList.filter { it.conversationId == customConv.conversationId }
+                val lastMsg = pMsgs.lastOrNull()
+
+                list.add(
+                    customConv.copy(
+                        lastMessageText = lastMsg?.text ?: customConv.lastMessageText,
+                        lastMessageTimestamp = lastMsg?.timestamp ?: customConv.lastMessageTimestamp
+                    )
+                )
+            }
+        }
+
+        // 4. EXISTING CONVERSATIONS WITH MESSAGE HISTORY (Out-of-range multi-hop chats)
         val conversationIdsWithHistory = msgList.map { it.conversationId }.distinct()
         for (convId in conversationIdsWithHistory) {
             if (convId == "BROADCAST" || handledConversations.contains(convId)) continue

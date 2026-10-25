@@ -23,6 +23,7 @@ import java.nio.charset.StandardCharsets
 /**
  * Unified Hardware Transport Coordinator.
  * Controls real physical BLE scanning, advertising, BLE GATT messaging, and LAN UDP transport between devices.
+ * Supports autonomous multi-hop message relaying across campus blocks.
  */
 class RadioCoordinator(
     private val context: Context,
@@ -121,7 +122,7 @@ class RadioCoordinator(
     }
 
     /**
-     * Transmits a genuine chat message across the dual-layer mesh (UDP broadcast + BLE GATT direct).
+     * Transmits a genuine chat message originating from this device.
      */
     fun transmitChatMessage(entity: MessageEntity, jsonPayload: String) {
         coroutineScope.launch(Dispatchers.IO) {
@@ -138,6 +139,24 @@ class RadioCoordinator(
                 }
             } catch (e: Exception) {
                 Log.w(TAG, "BLE GATT dispatch note: " + e.message)
+            }
+        }
+    }
+
+    /**
+     * Forwards a relayed packet over BLE GATT to active physical peers.
+     */
+    fun forwardRelayedPacket(jsonPayload: String) {
+        coroutineScope.launch(Dispatchers.IO) {
+            try {
+                val peers = database.peerDao().getActivePeers(0L)
+                for (peer in peers) {
+                    if (peer.macAddress.isNotBlank() && peer.macAddress != "00:00:00:00:00:00") {
+                        bleGattTransport.sendDirectGattMessage(peer.macAddress, jsonPayload)
+                    }
+                }
+            } catch (e: Exception) {
+                // Ignore
             }
         }
     }

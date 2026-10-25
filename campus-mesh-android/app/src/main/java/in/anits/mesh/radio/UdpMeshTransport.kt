@@ -3,6 +3,7 @@ package `in`.anits.mesh.radio
 import android.content.Context
 import android.net.wifi.WifiManager
 import android.util.Log
+import `in`.anits.mesh.crypto.CryptoEngine
 import `in`.anits.mesh.data.MeshDatabase
 import `in`.anits.mesh.data.UserManager
 import `in`.anits.mesh.data.entity.MessageEntity
@@ -17,7 +18,7 @@ import java.net.NetworkInterface
 import java.nio.charset.StandardCharsets
 
 /**
- * Offline Local Wi-Fi / Hotspot LAN UDP Mesh Transport.
+ * Offline Local Wi-Fi / Hotspot LAN UDP Mesh Transport with Autonomous Multi-Hop Hopping.
  * Broadcasts packets on UDP 38884 with zero internet required.
  */
 class UdpMeshTransport(
@@ -126,7 +127,6 @@ class UdpMeshTransport(
                     }
                 }
                 sendSocket.close()
-                Log.i(TAG, "Sent UDP mesh packet (" + bytes.size + " bytes) to " + targets.size + " endpoints")
             } catch (e: Exception) {
                 Log.e(TAG, "Error broadcasting UDP mesh packet: " + e.message)
             }
@@ -144,12 +144,12 @@ class UdpMeshTransport(
             val myNodeId = myProfile?.nodeId ?: ""
             val senderRoll = json.optString("senderRoll", "")
 
-            // Loopback prevention: Ignore messages sent by this local device
+            // Loopback prevention: Ignore packets originating from this device
             if (senderRoll.isNotBlank() && (senderRoll.equals(myRoll, ignoreCase = true) || senderRoll.equals(myNodeId, ignoreCase = true))) {
                 return@withContext
             }
 
-            // Deduplication barrier
+            // Deduplication Barrier: Drop packets already seen in the ring-buffer
             if (database.seenCacheDao().isSeen(uuid)) {
                 return@withContext
             }
@@ -158,38 +158,81 @@ class UdpMeshTransport(
             )
 
             val destRoll = json.optString("destRoll", "ALL PEERS")
-            // Accept if broadcast or targeted to me
-            val isForMe = destRoll == "ALL PEERS" || destRoll == "BROADCAST"
+            val isBroadcast = destRoll == "ALL PEERS" || destRoll == "BROADCAST"
+
+            val isForMe = isBroadcast
                     || destRoll.equals(myRoll, ignoreCase = true)
                     || destRoll.equals(myNodeId, ignoreCase = true)
                     || (myRoll.isNotBlank() && destRoll.contains(myRoll, ignoreCase = true))
                     || (myNodeId.isNotBlank() && destRoll.contains(myNodeId, ignoreCase = true))
 
-            if (!isForMe) {
-                Log.d(TAG, "Packet not for me (dest=" + destRoll + ", myRoll=" + myRoll + ")")
-                return@withContext
+            val ttl = json.optInt("ttl", 5)
+            val hopCount = json.optInt("hopCount", 0)
+            val relayedBy = json.optString("relayedBy", "")
+            val isEncrypted = json.optBoolean("isEncrypted", false)
+
+            // -------------------------------------------------------------
+            // 1. LOCAL DESTINATION RECEIPT (Only when meant for me or broadcast)
+            // -------------------------------------------------------------
+            if (isForMe) {
+                val packetType = json.optInt("packetType", PacketType.ROUTINE_CHAT.code.toInt()).toByte()
+                var rawText = json.optString("text", "")
+                val senderName = json.optString("senderName", "Peer")
+
+                // Decrypt payload if end-to-end encrypted for 1-to-1 private chat
+                if (isEncrypted && !isBroadcast) {
+                    val keySeed = CryptoEngine.derivePairwiseKey(senderRoll, myRoll)
+                    rawText = CryptoEngine.decryptAesGcm(rawText, keySeed)
+                    json.put("text", rawText) // Store decrypted content locally
+                }
+
+                val finalHopCount = if (hopCount == 0) 1 else (hopCount + 1)
+                json.put("hopCount", finalHopCount)
+                json.put("relayedBy", relayedBy)
+
+                val entity = MessageEntity(
+                    messageUuid = uuid,
+                    packetType = packetType,
+                    sourceId = senderRoll.ifBlank { "peer_node" },
+                    destId = if (isBroadcast) "BROADCAST" else destRoll,
+                    payloadBytes = json.toString().toByteArray(StandardCharsets.UTF_8),
+                    isEncrypted = isEncrypted,
+                    signatureBytes = ByteArray(64),
+                    hopCount = finalHopCount,
+                    remainingTtl = ttl,
+                    deliveryStatus = "DELIVERED",
+                    createdEpoch = json.optLong("timestampEpoch", System.currentTimeMillis())
+                )
+
+                database.messageDao().insertMessage(entity)
+                Log.i(TAG, "✓ [DESTINATION DELIVERED] Message from " + senderName + " (" + senderRoll + "): " + rawText + " [Hops: " + finalHopCount + ", via: " + relayedBy + "]")
             }
 
-            val packetType = json.optInt("packetType", PacketType.ROUTINE_CHAT.code.toInt()).toByte()
-            val text = json.optString("text", "")
-            val senderName = json.optString("senderName", "Peer")
+            // -------------------------------------------------------------
+            // 2. MULTI-HOP AUTONOMOUS RELAY FORWARDING
+            // If not exclusively for me (or broadcast across campus), and TTL > 1:
+            // Forward packet without revealing content to intermediate nodes!
+            // -------------------------------------------------------------
+            if ((!isForMe || isBroadcast) && ttl > 1) {
+                val nextTtl = ttl - 1
+                val nextHop = hopCount + 1
+                val relayPath = json.optString("relayPath", "")
+                val updatedRelayPath = if (relayPath.isBlank()) myRoll else "$relayPath -> $myRoll"
 
-            val entity = MessageEntity(
-                messageUuid = uuid,
-                packetType = packetType,
-                sourceId = senderRoll.ifBlank { "peer_node" },
-                destId = if (destRoll == "ALL PEERS" || destRoll == "BROADCAST") "BROADCAST" else destRoll,
-                payloadBytes = jsonStr.toByteArray(StandardCharsets.UTF_8),
-                isEncrypted = false,
-                signatureBytes = ByteArray(64),
-                hopCount = 1,
-                remainingTtl = 5,
-                deliveryStatus = "DELIVERED",
-                createdEpoch = json.optLong("timestampEpoch", System.currentTimeMillis())
-            )
+                json.put("ttl", nextTtl)
+                json.put("hopCount", nextHop)
+                json.put("relayedBy", myRoll)
+                json.put("relayPath", updatedRelayPath)
 
-            database.messageDao().insertMessage(entity)
-            Log.i(TAG, "✓ Received genuine mesh message from " + senderName + " (" + senderRoll + "): " + text)
+                val relayedJsonStr = json.toString()
+                Log.i(TAG, "🔀 [MULTI-HOP RELAY] Forwarding packet from " + senderRoll + " -> " + destRoll + " via " + myRoll + " (Hop " + nextHop + ", TTL: " + nextTtl + ")")
+
+                // Re-broadcast over LAN UDP
+                broadcastJson(relayedJsonStr)
+
+                // Re-forward over Bluetooth LE GATT to other physical peers
+                RadioCoordinator.instance?.forwardRelayedPacket(relayedJsonStr)
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to parse incoming UDP packet: " + e.message)
         }

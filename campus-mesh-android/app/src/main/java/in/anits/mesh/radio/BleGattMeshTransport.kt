@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.bluetooth.*
 import android.content.Context
 import android.util.Log
+import `in`.anits.mesh.crypto.CryptoEngine
 import `in`.anits.mesh.data.MeshDatabase
 import `in`.anits.mesh.data.UserManager
 import `in`.anits.mesh.data.entity.MessageEntity
@@ -12,12 +13,12 @@ import `in`.anits.mesh.model.PacketType
 import kotlinx.coroutines.*
 import org.json.JSONObject
 import java.nio.charset.StandardCharsets
-import java.util.UUID
+import java.util.*
 
 /**
- * Direct Offline Peer-to-Peer BLE GATT Transport.
- * Transmits and receives full JSON packets directly over Bluetooth LE without any Wi-Fi connection.
+ * Offline Direct Bluetooth LE GATT Mesh Transport with Multi-Hop Relaying.
  */
+@SuppressLint("MissingPermission")
 class BleGattMeshTransport(
     private val context: Context,
     private val bluetoothAdapter: BluetoothAdapter?,
@@ -25,17 +26,45 @@ class BleGattMeshTransport(
     private val coroutineScope: CoroutineScope
 ) {
     companion object {
-        private const val TAG = "BleGattTransport"
-        val MESH_SERVICE_UUID: UUID = UUID.fromString("0000FEF1-0000-1000-8000-00805F9B34FB")
-        val MESH_CHAR_UUID: UUID = UUID.fromString("0000FEF2-0000-1000-8000-00805F9B34FB")
+        private const val TAG = "BleGattMeshTransport"
+        val MESH_SERVICE_UUID: UUID = UUID.fromString("0000FE60-0000-1000-8000-00805F9B34FB")
+        val MESH_CHAR_UUID: UUID = UUID.fromString("0000FE61-0000-1000-8000-00805F9B34FB")
     }
 
-    private var bluetoothManager: BluetoothManager? = null
-    private var gattServer: BluetoothGattServer? = null
-    private var isRunning = false
+    private var bluetoothGattServer: BluetoothGattServer? = null
+    private val bluetoothManager: BluetoothManager? by lazy {
+        context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
+    }
+
+    fun start() {
+        if (bluetoothGattServer != null || bluetoothAdapter == null || !bluetoothAdapter.isEnabled) return
+
+        try {
+            bluetoothGattServer = bluetoothManager?.openGattServer(context, gattServerCallback)
+            val service = BluetoothGattService(MESH_SERVICE_UUID, BluetoothGattService.SERVICE_TYPE_PRIMARY)
+            val characteristic = BluetoothGattCharacteristic(
+                MESH_CHAR_UUID,
+                BluetoothGattCharacteristic.PROPERTY_WRITE or BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE or BluetoothGattCharacteristic.PROPERTY_READ,
+                BluetoothGattCharacteristic.PERMISSION_WRITE or BluetoothGattCharacteristic.PERMISSION_READ
+            )
+            service.addCharacteristic(characteristic)
+            bluetoothGattServer?.addService(service)
+            Log.i(TAG, "✓ BLE GATT Server initialized with Service " + MESH_SERVICE_UUID)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to initialize BLE GATT Server: " + e.message)
+        }
+    }
+
+    fun stop() {
+        try {
+            bluetoothGattServer?.close()
+            bluetoothGattServer = null
+        } catch (e: Exception) {
+            // Ignore
+        }
+    }
 
     private val gattServerCallback = object : BluetoothGattServerCallback() {
-        @SuppressLint("MissingPermission")
         override fun onCharacteristicWriteRequest(
             device: BluetoothDevice?,
             requestId: Int,
@@ -45,67 +74,28 @@ class BleGattMeshTransport(
             offset: Int,
             value: ByteArray?
         ) {
-            super.onCharacteristicWriteRequest(device, requestId, characteristic, preparedWrite, responseNeeded, offset, value)
-            if (responseNeeded && device != null) {
-                try {
-                    gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, value)
-                } catch (e: Exception) {
-                    // Safe
-                }
+            if (responseNeeded) {
+                bluetoothGattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, value)
             }
-            if (value != null && value.isNotEmpty()) {
-                val jsonStr = String(value, StandardCharsets.UTF_8)
+
+            if (characteristic?.uuid == MESH_CHAR_UUID && value != null) {
+                val dataStr = String(value, StandardCharsets.UTF_8)
                 coroutineScope.launch(Dispatchers.IO) {
-                    processIncomingJson(jsonStr)
+                    processIncomingGattJson(dataStr)
                 }
             }
         }
     }
 
-    @SuppressLint("MissingPermission")
-    fun start() {
-        if (isRunning) return
-        bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
-        if (bluetoothManager == null || bluetoothAdapter == null || !bluetoothAdapter.isEnabled) return
-
-        try {
-            gattServer = bluetoothManager?.openGattServer(context, gattServerCallback)
-            val service = BluetoothGattService(MESH_SERVICE_UUID, BluetoothGattService.SERVICE_TYPE_PRIMARY)
-            val char = BluetoothGattCharacteristic(
-                MESH_CHAR_UUID,
-                BluetoothGattCharacteristic.PROPERTY_WRITE or BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE,
-                BluetoothGattCharacteristic.PERMISSION_WRITE
-            )
-            service.addCharacteristic(char)
-            gattServer?.addService(service)
-            isRunning = true
-            Log.i(TAG, "✓ BLE GATT Server listening on $MESH_SERVICE_UUID")
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to start BLE GATT Server: ${e.message}")
-        }
-    }
-
-    @SuppressLint("MissingPermission")
-    fun stop() {
-        isRunning = false
-        try {
-            gattServer?.close()
-            gattServer = null
-        } catch (e: Exception) {
-            // Safe
-        }
-    }
-
-    @SuppressLint("MissingPermission")
-    fun sendDirectGattMessage(targetMac: String, jsonString: String) {
+    fun sendDirectGattMessage(peerMac: String, jsonString: String) {
         if (bluetoothAdapter == null || !bluetoothAdapter.isEnabled) return
-        if (targetMac == "00:00:00:00:00:00" || targetMac.isBlank()) return
 
         coroutineScope.launch(Dispatchers.IO) {
             try {
-                val device = bluetoothAdapter.getRemoteDevice(targetMac) ?: return@launch
+                val device = bluetoothAdapter.getRemoteDevice(peerMac) ?: return@launch
                 val bytes = jsonString.toByteArray(StandardCharsets.UTF_8)
 
+                var gattClient: BluetoothGatt? = null
                 val clientCallback = object : BluetoothGattCallback() {
                     override fun onConnectionStateChange(gatt: BluetoothGatt?, status: Int, newState: Int) {
                         if (newState == BluetoothProfile.STATE_CONNECTED) {
@@ -120,32 +110,30 @@ class BleGattMeshTransport(
                     }
 
                     override fun onServicesDiscovered(gatt: BluetoothGatt?, status: Int) {
-                        val service = gatt?.getService(MESH_SERVICE_UUID)
-                        val char = service?.getCharacteristic(MESH_CHAR_UUID)
-                        if (char != null) {
-                            char.value = bytes
-                            char.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
-                            gatt.writeCharacteristic(char)
-                            Log.i(TAG, "Writing BLE GATT packet (" + bytes.size + " bytes) to " + targetMac)
-                        } else {
-                            gatt?.disconnect()
+                        if (status == BluetoothGatt.GATT_SUCCESS) {
+                            val service = gatt?.getService(MESH_SERVICE_UUID)
+                            val characteristic = service?.getCharacteristic(MESH_CHAR_UUID)
+                            if (characteristic != null) {
+                                characteristic.value = bytes
+                                characteristic.writeType = BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
+                                gatt.writeCharacteristic(characteristic)
+                            }
                         }
                     }
 
                     override fun onCharacteristicWrite(gatt: BluetoothGatt?, characteristic: BluetoothGattCharacteristic?, status: Int) {
-                        Log.i(TAG, "✓ BLE GATT packet delivered to " + targetMac)
-                        gatt?.disconnect()
+                        try { gatt?.disconnect(); gatt?.close() } catch (e: Exception) {}
                     }
                 }
 
-                device.connectGatt(context, false, clientCallback, BluetoothDevice.TRANSPORT_LE)
+                gattClient = device.connectGatt(context, false, clientCallback, BluetoothDevice.TRANSPORT_LE)
             } catch (e: Exception) {
-                Log.e(TAG, "Error in sendDirectGattMessage: " + e.message)
+                // Ignore connection drops
             }
         }
     }
 
-    private suspend fun processIncomingJson(jsonStr: String) = withContext(Dispatchers.IO) {
+    private suspend fun processIncomingGattJson(jsonStr: String) = withContext(Dispatchers.IO) {
         try {
             val json = JSONObject(jsonStr)
             val uuid = json.optString("uuid", "")
@@ -170,34 +158,72 @@ class BleGattMeshTransport(
             )
 
             val destRoll = json.optString("destRoll", "ALL PEERS")
-            val isForMe = destRoll == "ALL PEERS" || destRoll == "BROADCAST"
+            val isBroadcast = destRoll == "ALL PEERS" || destRoll == "BROADCAST"
+
+            val isForMe = isBroadcast
                     || destRoll.equals(myRoll, ignoreCase = true)
                     || destRoll.equals(myNodeId, ignoreCase = true)
                     || (myRoll.isNotBlank() && destRoll.contains(myRoll, ignoreCase = true))
                     || (myNodeId.isNotBlank() && destRoll.contains(myNodeId, ignoreCase = true))
 
-            if (!isForMe) return@withContext
+            val ttl = json.optInt("ttl", 5)
+            val hopCount = json.optInt("hopCount", 0)
+            val relayedBy = json.optString("relayedBy", "")
+            val isEncrypted = json.optBoolean("isEncrypted", false)
 
-            val packetType = json.optInt("packetType", PacketType.ROUTINE_CHAT.code.toInt()).toByte()
-            val text = json.optString("text", "")
-            val senderName = json.optString("senderName", "Peer")
+            // 1. LOCAL RECEPTION (Destination reached)
+            if (isForMe) {
+                val packetType = json.optInt("packetType", PacketType.ROUTINE_CHAT.code.toInt()).toByte()
+                var rawText = json.optString("text", "")
+                val senderName = json.optString("senderName", "Peer")
 
-            val entity = MessageEntity(
-                messageUuid = uuid,
-                packetType = packetType,
-                sourceId = senderRoll.ifBlank { "peer_node" },
-                destId = if (destRoll == "ALL PEERS" || destRoll == "BROADCAST") "BROADCAST" else destRoll,
-                payloadBytes = jsonStr.toByteArray(StandardCharsets.UTF_8),
-                isEncrypted = false,
-                signatureBytes = ByteArray(64),
-                hopCount = 1,
-                remainingTtl = 5,
-                deliveryStatus = "DELIVERED",
-                createdEpoch = json.optLong("timestampEpoch", System.currentTimeMillis())
-            )
+                if (isEncrypted && !isBroadcast) {
+                    val keySeed = CryptoEngine.derivePairwiseKey(senderRoll, myRoll)
+                    rawText = CryptoEngine.decryptAesGcm(rawText, keySeed)
+                    json.put("text", rawText)
+                }
 
-            database.messageDao().insertMessage(entity)
-            Log.i(TAG, "✓ Received genuine mesh message via BLE GATT from " + senderName + " (" + senderRoll + "): " + text)
+                val finalHopCount = if (hopCount == 0) 1 else (hopCount + 1)
+                json.put("hopCount", finalHopCount)
+                json.put("relayedBy", relayedBy)
+
+                val entity = MessageEntity(
+                    messageUuid = uuid,
+                    packetType = packetType,
+                    sourceId = senderRoll.ifBlank { "peer_node" },
+                    destId = if (isBroadcast) "BROADCAST" else destRoll,
+                    payloadBytes = json.toString().toByteArray(StandardCharsets.UTF_8),
+                    isEncrypted = isEncrypted,
+                    signatureBytes = ByteArray(64),
+                    hopCount = finalHopCount,
+                    remainingTtl = ttl,
+                    deliveryStatus = "DELIVERED",
+                    createdEpoch = json.optLong("timestampEpoch", System.currentTimeMillis())
+                )
+
+                database.messageDao().insertMessage(entity)
+                Log.i(TAG, "✓ [GATT DESTINATION DELIVERED] Message from " + senderName + " (" + senderRoll + "): " + rawText + " [Hops: " + finalHopCount + ", via: " + relayedBy + "]")
+            }
+
+            // 2. MULTI-HOP RELAY FORWARDING
+            if ((!isForMe || isBroadcast) && ttl > 1) {
+                val nextTtl = ttl - 1
+                val nextHop = hopCount + 1
+                val relayPath = json.optString("relayPath", "")
+                val updatedRelayPath = if (relayPath.isBlank()) myRoll else "$relayPath -> $myRoll"
+
+                json.put("ttl", nextTtl)
+                json.put("hopCount", nextHop)
+                json.put("relayedBy", myRoll)
+                json.put("relayPath", updatedRelayPath)
+
+                val relayedJsonStr = json.toString()
+                Log.i(TAG, "🔀 [GATT MULTI-HOP RELAY] Relaying packet from " + senderRoll + " -> " + destRoll + " via " + myRoll + " (Hop " + nextHop + ", TTL: " + nextTtl + ")")
+
+                // Re-broadcast over UDP
+                UdpMeshTransport(context, database, coroutineScope).broadcastJson(relayedJsonStr)
+                RadioCoordinator.instance?.forwardRelayedPacket(relayedJsonStr)
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to parse incoming BLE GATT packet: " + e.message)
         }
