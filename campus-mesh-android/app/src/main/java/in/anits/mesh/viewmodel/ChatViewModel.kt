@@ -35,7 +35,9 @@ data class ChatConversation(
     val rssi: Int = 0,
     val lastMessageText: String = "",
     val lastMessageTimestamp: String = "",
-    val lastMessageDeliveryStatus: String = "DELIVERED"
+    val lastMessageDeliveryStatus: String = "DELIVERED",
+    val unreadCount: Int = 0,            // Badge count like WhatsApp green circle
+    val lastMessageIsRead: Boolean = true // false = white ticks, true = blue ticks
 )
 
 data class MeshChatMessage(
@@ -307,6 +309,20 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
             // Transmit over real mesh radio and local Wi-Fi / hotspot subnet
             RadioCoordinator.instance?.transmitChatMessage(entity, wireJsonStr)
+        }
+    }
+
+    /**
+     * Called when the user opens a conversation - marks all its messages as read
+     * (clears the unread badge and flips ticks to blue).
+     */
+    fun markConversationRead(conversationId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            if (conversationId == "BROADCAST") {
+                messageDao.markBroadcastRead()
+            } else {
+                messageDao.markConversationRead(conversationId)
+            }
         }
     }
 

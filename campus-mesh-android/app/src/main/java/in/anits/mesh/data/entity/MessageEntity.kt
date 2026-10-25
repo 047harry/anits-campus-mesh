@@ -48,6 +48,9 @@ data class MessageEntity(
     @ColumnInfo(name = "delivery_status")
     val deliveryStatus: String, // 'QUEUED', 'RELAYED', 'ACKNOWLEDGED'
 
+    @ColumnInfo(name = "is_read", defaultValue = "0")
+    val isRead: Boolean = false,
+
     @ColumnInfo(name = "created_epoch")
     val createdEpoch: Long
 )
