@@ -1,0 +1,115 @@
+<svg width="390" height="844" viewBox="0 0 390 844" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <!-- Background -->
+        <rect width="390" height="844" rx="40" fill="#000000"/>
+        <rect width="390" height="844" rx="40" stroke="#374151" stroke-width="2"/>
+
+        
+        <!-- Status Bar -->
+        <g id="StatusBar">
+            <text x="32" y="32" fill="#FFFFFF" font-family="Inter, Roboto, sans-serif" font-size="14" font-weight="700">9:41</text>
+            <!-- Dynamic Island / Speaker Notch -->
+            <rect x="135" y="14" width="120" height="28" rx="14" fill="#000000"/>
+            <circle cx="230" cy="28" r="5" fill="#1E293B"/>
+            <circle cx="160" cy="28" r="4" fill="#0F172A"/>
+            <!-- Radio & Battery icons -->
+            <circle cx="310" cy="28" r="4" fill="#10B981"/>
+            <text x="320" y="32" fill="#10B981" font-family="Inter, Roboto, sans-serif" font-size="11" font-weight="600">14p</text>
+            <rect x="345" y="22" width="22" height="12" rx="3" fill="none" stroke="#FFFFFF" stroke-width="1.5"/>
+            <rect x="347" y="24" width="14" height="8" rx="1.5" fill="#10B981"/>
+            <rect x="368" y="26" width="2" height="4" rx="1" fill="#FFFFFF"/>
+        </g>
+        <!-- Blackout Banner -->
+        <g id="BlackoutBanner">
+            <rect x="16" y="52" width="358" height="28" rx="6" fill="#7F1D1D" stroke="#EF4444" stroke-width="1"/>
+            <circle cx="30" cy="66" r="4" fill="#EF4444"/>
+            <text x="42" y="70" fill="#FFFFFF" font-family="Inter, Roboto, sans-serif" font-size="11" font-weight="700">OFFLINE MESH ACTIVE • CELLULAR &amp; GRID DOWN</text>
+        </g>
+        
+
+        <!-- Header -->
+        <g id="ScreenHeader">
+            <text x="20" y="112" fill="#FFFFFF" font-family="Inter, Roboto, sans-serif" font-size="20" font-weight="800">OFFICIAL BULLETINS</text>
+            <text x="20" y="130" fill="#F59E0B" font-family="Inter, Roboto, sans-serif" font-size="11" font-weight="600">OFFLINE CRYPTOGRAPHICALLY AUTHENTICATED</text>
+        </g>
+
+        <!-- Bulletin Card 1: Evacuation Order -->
+        <g id="NoticeCard1">
+            <rect x="16" y="146" width="358" height="240" rx="14" fill="#111827" stroke="#F59E0B" stroke-width="2"/>
+            <!-- Card Header Bar -->
+            <rect x="16" y="146" width="358" height="42" rx="14" fill="#78350F" fill-opacity="0.4"/>
+            <rect x="28" y="156" width="22" height="22" rx="6" fill="#F59E0B"/>
+            <text x="39" y="172" fill="#000000" font-family="Inter, Roboto, sans-serif" font-size="13" font-weight="900" text-anchor="middle">★</text>
+            <text x="58" y="171" fill="#FEF3C7" font-family="Inter, Roboto, sans-serif" font-size="12" font-weight="800">GOLD SHIELD DIRECTIVE</text>
+            <rect x="286" y="156" width="76" height="22" rx="6" fill="#1E293B"/>
+            <text x="324" y="171" fill="#9CA3AF" font-family="Inter, Roboto, sans-serif" font-size="10" font-weight="700" text-anchor="middle">2 HOPS • 10:14</text>
+
+            <!-- Sender Info -->
+            <text x="28" y="210" fill="#FFFFFF" font-family="Inter, Roboto, sans-serif" font-size="14" font-weight="700">Dr. K. Venkata Lakshmi (HOD — CSD)</text>
+            <text x="28" y="226" fill="#F59E0B" font-family="Inter, Roboto, sans-serif" font-size="11" font-weight="600">Priority 1 Institutional Broadcast</text>
+
+            <!-- Directive Body -->
+            <rect x="28" y="238" width="334" height="88" rx="8" fill="#1F2937"/>
+            <text x="38" y="258" fill="#FCA5A5" font-family="Inter, Roboto, sans-serif" font-size="12" font-weight="700">IMMEDIATE CAMPUS EVACUATION ORDER:</text>
+            <text x="38" y="276" fill="#E5E7EB" font-family="Inter, Roboto, sans-serif" font-size="11">Tremor aftershock detected. DO NOT use central lifts.</text>
+            <text x="38" y="294" fill="#E5E7EB" font-family="Inter, Roboto, sans-serif" font-size="11">Evacuate via North Fire Stairwells directly to the</text>
+            <text x="38" y="312" fill="#6EE7B7" font-family="Inter, Roboto, sans-serif" font-size="11" font-weight="700">Central Cricket Ground Safe Muster Zone.</text>
+
+            <!-- Offline Trust Seal -->
+            <rect x="28" y="338" width="334" height="34" rx="6" fill="#064E3B" fill-opacity="0.4" stroke="#10B981" stroke-width="1"/>
+            <circle cx="44" cy="355" r="7" fill="#10B981"/>
+            <text x="44" y="359" fill="#000000" font-family="Inter, Roboto, sans-serif" font-size="9" font-weight="900" text-anchor="middle">✓</text>
+            <text x="58" y="359" fill="#A7F3D0" font-family="Inter, Roboto, sans-serif" font-size="10" font-weight="700">Ed25519 Signature Verified Against Offline Key Ring</text>
+        </g>
+
+        <!-- Bulletin Card 2: Medical Clinic -->
+        <g id="NoticeCard2">
+            <rect x="16" y="400" width="358" height="150" rx="14" fill="#111827" stroke="#374151" stroke-width="1.5"/>
+            <rect x="28" y="412" width="20" height="20" rx="5" fill="#F59E0B"/>
+            <text x="38" y="426" fill="#000000" font-family="Inter, Roboto, sans-serif" font-size="11" font-weight="900" text-anchor="middle">★</text>
+            <text x="56" y="426" fill="#F59E0B" font-family="Inter, Roboto, sans-serif" font-size="11" font-weight="700">CAMPUS CLINIC EMERGENCY ADVISORY</text>
+            <text x="28" y="452" fill="#FFFFFF" font-family="Inter, Roboto, sans-serif" font-size="13" font-weight="700">Health Center Triage Team (Dr. S. Adinarayana)</text>
+            <text x="28" y="474" fill="#D1D5DB" font-family="Inter, Roboto, sans-serif" font-size="11">Emergency first-aid tents operational at Cricket Ground.</text>
+            <text x="28" y="492" fill="#D1D5DB" font-family="Inter, Roboto, sans-serif" font-size="11">Stretcher teams dispatched to Mechanical and CSE Blocks.</text>
+            <rect x="28" y="508" width="334" height="26" rx="5" fill="#1F2937"/>
+            <text x="38" y="525" fill="#10B981" font-family="Inter, Roboto, sans-serif" font-size="10" font-weight="600">✓ Verified Authority Key: 0x8F21...DE41</text>
+        </g>
+
+        
+        <!-- Bottom Navigation Bar -->
+        <g id="BottomNavBar">
+            <rect x="0" y="764" width="390" height="80" fill="#000000" fill-opacity="0.95"/>
+            <line x1="0" y1="764" x2="390" y2="764" stroke="#1F2937" stroke-width="1"/>
+            
+            <g id="Tab_sos">
+                <circle cx="48" cy="788" r="14" fill="#1E293B" fill-opacity="0.4"/>
+                <circle cx="48" cy="788" r="6" fill="#64748B"/>
+                <text x="48" y="812" fill="#9CA3AF" font-family="Inter, Roboto, sans-serif" font-size="10" font-weight="500" text-anchor="middle">SOS</text>
+                
+            </g>
+            
+            <g id="Tab_bulletins">
+                <circle cx="146" cy="788" r="14" fill="#F59E0B" fill-opacity="0.2"/>
+                <circle cx="146" cy="788" r="6" fill="#F59E0B"/>
+                <text x="146" y="812" fill="#F59E0B" font-family="Inter, Roboto, sans-serif" font-size="10" font-weight="700" text-anchor="middle">Bulletins</text>
+                <circle cx="146" cy="824" r="2.5" fill="#F59E0B"/>
+            </g>
+            
+            <g id="Tab_chat">
+                <circle cx="244" cy="788" r="14" fill="#1E293B" fill-opacity="0.4"/>
+                <circle cx="244" cy="788" r="6" fill="#64748B"/>
+                <text x="244" y="812" fill="#9CA3AF" font-family="Inter, Roboto, sans-serif" font-size="10" font-weight="500" text-anchor="middle">Mesh Chat</text>
+                
+            </g>
+            
+            <g id="Tab_map">
+                <circle cx="342" cy="788" r="14" fill="#1E293B" fill-opacity="0.4"/>
+                <circle cx="342" cy="788" r="6" fill="#64748B"/>
+                <text x="342" y="812" fill="#9CA3AF" font-family="Inter, Roboto, sans-serif" font-size="10" font-weight="500" text-anchor="middle">Campus Map</text>
+                
+            </g>
+            
+            <!-- Home Indicator -->
+            <rect x="125" y="834" width="140" height="4" rx="2" fill="#4B5563"/>
+        </g>
+        
+    </svg>

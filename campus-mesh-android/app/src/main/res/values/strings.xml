@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Campus Mesh</string>
+    <string name="campus_name">ANITS — Anil Neerukonda Institute</string>
+    <string name="status_blackout">DISASTER MODE: 100% OFFLINE MESH</string>
+</resources>

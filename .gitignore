@@ -1,0 +1,13 @@
+﻿# Build Artifacts
+.gradle/
+**/build/
+*.iml
+.idea/
+.vscode/
+local.properties
+*.apk
+
+# Unrelated project folders
+android_tv_optimization/
+free-my-tv/
+OrbitLauncher/
