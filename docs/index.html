@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ANITS CampusMesh | Live App Deployment & Distribution</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+    <style>
+        :root {
+            --bg: #090D16;
+            --surface: #111827;
+            --surface-border: #1F2937;
+            --red: #EF4444;
+            --red-glow: rgba(239, 68, 68, 0.35);
+            --green: #10B981;
+            --blue: #3B82F6;
+            --gold: #F59E0B;
+            --text-primary: #F9FAFB;
+            --text-muted: #9CA3AF;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 24px 16px;
+        }
+        .header {
+            max-width: 900px;
+            width: 100%;
+            text-align: center;
+            margin-bottom: 28px;
+        }
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(16, 185, 129, 0.15);
+            border: 1px solid var(--green);
+            color: var(--green);
+            padding: 4px 12px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 700;
+            margin-bottom: 12px;
+            letter-spacing: 0.5px;
+        }
+        .pulse-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--green);
+            border-radius: 50%;
+            box-shadow: 0 0 10px var(--green);
+        }
+        h1 {
+            font-size: clamp(26px, 5vw, 42px);
+            font-weight: 900;
+            letter-spacing: -0.5px;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, #FFFFFF 40%, #94A3B8 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        p.subtitle {
+            color: var(--text-muted);
+            font-size: 15px;
+            line-height: 1.5;
+            max-width: 650px;
+            margin: 0 auto;
+        }
+        .container {
+            max-width: 1000px;
+            width: 100%;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            margin-bottom: 32px;
+        }
+        @media (max-width: 850px) {
+            .container { grid-template-columns: 1fr; }
+        }
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--surface-border);
+            border-radius: 20px;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+        }
+        .download-box {
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .download-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            background: linear-gradient(135deg, #EF4444 0%, #B91C1C 100%);
+            color: white;
+            text-decoration: none;
+            padding: 16px 28px;
+            border-radius: 14px;
+            font-weight: 800;
+            font-size: 16px;
+            box-shadow: 0 10px 25px var(--red-glow);
+            transition: all 0.2s ease;
+            width: 100%;
+            max-width: 320px;
+            margin-top: 20px;
+        }
+        .download-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 15px 30px rgba(239, 68, 68, 0.5);
+        }
+        .qr-wrapper {
+            background: white;
+            padding: 16px;
+            border-radius: 16px;
+            margin: 20px auto 14px auto;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+            display: inline-block;
+        }
+        .qr-caption {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-bottom: 12px;
+        }
+        .meta-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: center;
+            margin-top: 10px;
+        }
+        .chip {
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.1);
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            color: #CBD5E1;
+        }
+        .guide-step {
+            display: flex;
+            gap: 14px;
+            margin-bottom: 16px;
+        }
+        .step-num {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: var(--blue);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 12px;
+            flex-shrink: 0;
+        }
+        .step-content h4 {
+            font-size: 14px;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+        .step-content p {
+            font-size: 12.5px;
+            color: var(--text-muted);
+            line-height: 1.4;
+        }
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 14px;
+            margin-top: 14px;
+        }
+        .feature-item {
+            background: #0D1322;
+            border: 1px solid #1E293B;
+            border-radius: 12px;
+            padding: 12px;
+        }
+        .feature-item h5 {
+            font-size: 12.5px;
+            font-weight: 700;
+            color: #E2E8F0;
+            margin-bottom: 4px;
+        }
+        .feature-item p {
+            font-size: 11px;
+            color: #94A3B8;
+            line-height: 1.35;
+        }
+        footer {
+            margin-top: auto;
+            text-align: center;
+            font-size: 12px;
+            color: #64748B;
+            padding: 20px 0;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <div class="badge">
+            <div class="pulse-dot"></div>
+            OFFICIAL LIVE RELEASE • v1.0.0
+        </div>
+        <h1>ANITS Campus Mesh Network</h1>
+        <p class="subtitle">
+            Decentralized, delay-tolerant disaster communication network operating entirely offline via BLE 5.0 and Wi-Fi Aware. Zero cellular, zero internet required.
+        </p>
+    </div>
+
+    <div class="container">
+        <!-- Download & QR Card -->
+        <div class="card download-box">
+            <h2 style="font-size: 19px; font-weight: 800;">Install CampusMesh App</h2>
+            <p style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">
+                Scan with any phone camera or click to download directly.
+            </p>
+
+            <div class="qr-wrapper" id="qrcode"></div>
+            <p class="qr-caption">📱 Point camera to download on any Android phone</p>
+
+            <a href="https://github.com/047harry/anits-campus-mesh/releases/download/v1.0.0/CampusMesh-v1.0.apk" class="download-btn" download>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+                Download APK (v1.0.0)
+            </a>
+
+            <div class="meta-chips">
+                <span class="chip">📦 Size: ~63 MB</span>
+                <span class="chip">📱 Android 10.0+</span>
+                <span class="chip">🔒 Ed25519 Signed</span>
+                <span class="chip">⚡ Zero-Data Relay</span>
+            </div>
+        </div>
+
+        <!-- Testing & Multi-Device Setup Guide -->
+        <div class="card">
+            <h2 style="font-size: 19px; font-weight: 800; margin-bottom: 16px;">Multi-Device Testing Guide</h2>
+
+            <div class="guide-step">
+                <div class="step-num">1</div>
+                <div class="step-content">
+                    <h4>Install on 2+ Android Phones</h4>
+                    <p>Download the APK on both devices. If prompted, tap <i>"Settings ➔ Allow from this source"</i> to install.</p>
+                </div>
+            </div>
+
+            <div class="guide-step">
+                <div class="step-num">2</div>
+                <div class="step-content">
+                    <h4>Grant Nearby Devices & Bluetooth</h4>
+                    <p>Launch the app. Grant the requested Bluetooth & Location permissions so the radios can scan and broadcast.</p>
+                </div>
+            </div>
+
+            <div class="guide-step">
+                <div class="step-num">3</div>
+                <div class="step-content">
+                    <h4>Simulate Total Blackout (Turn Off Wi-Fi & Data)</h4>
+                    <p>Turn OFF Mobile Data and Wi-Fi Internet on both phones (leave Bluetooth ON). Bring devices within 30m.</p>
+                </div>
+            </div>
+
+            <div class="guide-step">
+                <div class="step-num">4</div>
+                <div class="step-content">
+                    <h4>Observe Real-Time Mesh Relay</h4>
+                    <p>Watch both devices instantly discover each other. Send an offline chat or tap <b>EMERGENCY SOS</b> to witness priority routing across the mesh!</p>
+                </div>
+            </div>
+
+            <div class="features-grid">
+                <div class="feature-item">
+                    <h5>70-Byte Wire Frame</h5>
+                    <p>CRC-32 checksum and strict protocol versioning.</p>
+                </div>
+                <div class="feature-item">
+                    <h5>Ed25519 PKI</h5>
+                    <p>Sub-5ms asymmetric cryptographic signature verification.</p>
+                </div>
+                <div class="feature-item">
+                    <h5>DTN Vault</h5>
+                    <p>Room SQLite store-and-forward persistence across nodes.</p>
+                </div>
+                <div class="feature-item">
+                    <h5>3-Tier QoS</h5>
+                    <p>Emergency SOS beacons immediately preempt low-priority chat.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        <p><b>Capstone Project — Team 12</b> • Department of Computer Science & Data Science (CSD)</p>
+        <p style="margin-top: 4px;">Anil Neerukonda Institute of Technology & Sciences (ANITS), Sangivalasa, Visakhapatnam</p>
+    </footer>
+
+    <script>
+        // Generate QR Code dynamically pointing to the exact current URL/APK
+        const apkUrl = 'https://github.com/047harry/anits-campus-mesh/releases/download/v1.0.0/CampusMesh-v1.0.apk';
+        new QRCode(document.getElementById("qrcode"), {
+            text: apkUrl,
+            width: 160,
+            height: 160,
+            colorDark: "#0B132B",
+            colorLight: "#FFFFFF",
+            correctLevel: QRCode.CorrectLevel.M
+        });
+    </script>
+</body>
+</html>
