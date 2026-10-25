@@ -34,6 +34,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.layout.ContentScale
 import `in`.anits.mesh.util.ImageCompressor
 import `in`.anits.mesh.data.UserManager
@@ -57,7 +59,8 @@ val RelayCyan = Color(0xFF67E8F9)
 
 @Composable
 fun ChatScreen(
-    viewModel: ChatViewModel = viewModel()
+    viewModel: ChatViewModel = viewModel(),
+    onSwitchUser: (() -> Unit)? = null
 ) {
     val activeConversation by viewModel.activeConversation.collectAsState()
     val conversations by viewModel.conversations.collectAsState()
@@ -75,7 +78,8 @@ fun ChatScreen(
             WhatsAppInboxView(
                 conversations = conversations,
                 onSelectConversation = { viewModel.openConversation(it) },
-                onOpenNewChat = { showNewChatDialog = true }
+                onOpenNewChat = { showNewChatDialog = true },
+                onSwitchUser = onSwitchUser
             )
         } else {
             // Screen 2: WhatsApp Chat Room (Inside a conversation)
@@ -111,12 +115,35 @@ fun ChatScreen(
 fun WhatsAppInboxView(
     conversations: List<ChatConversation>,
     onSelectConversation: (ChatConversation) -> Unit,
-    onOpenNewChat: () -> Unit
+    onOpenNewChat: () -> Unit,
+    onSwitchUser: (() -> Unit)? = null
 ) {
+    var searchQuery by remember { mutableStateOf("") }
+
     val generalBroadcast = conversations.firstOrNull { it.isBroadcast }
     val directChats = conversations.filter { !it.isBroadcast }
     val onlineDirectChats = directChats.filter { it.isOnlineInRange }
     val multiHopChats = directChats.filter { !it.isOnlineInRange }
+
+    val filteredDirectChats = if (searchQuery.isBlank()) {
+        onlineDirectChats
+    } else {
+        onlineDirectChats.filter {
+            it.title.contains(searchQuery, ignoreCase = true) ||
+            it.rollNumber.contains(searchQuery, ignoreCase = true) ||
+            it.department.contains(searchQuery, ignoreCase = true)
+        }
+    }
+
+    val filteredMultiHopChats = if (searchQuery.isBlank()) {
+        multiHopChats
+    } else {
+        multiHopChats.filter {
+            it.title.contains(searchQuery, ignoreCase = true) ||
+            it.rollNumber.contains(searchQuery, ignoreCase = true) ||
+            it.department.contains(searchQuery, ignoreCase = true)
+        }
+    }
 
     Scaffold(
         floatingActionButton = {
@@ -148,7 +175,7 @@ fun WhatsAppInboxView(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // WhatsApp Top App Bar
+            // Clean WhatsApp Top App Bar (Clutter-free, modern)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -157,33 +184,99 @@ fun WhatsAppInboxView(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Column {
-                    Text(
-                        text = "ANITS Mesh Chat",
-                        color = Color.White,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "● Offline Multi-Hop P2P • Zero Internet Required",
-                        color = WhatsAppGreen,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Medium
-                    )
+                Text(
+                    text = "ANITS Mesh Chat",
+                    color = Color.White,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold
+                )
+
+                if (onSwitchUser != null) {
+                    val userProfile = UserManager.getProfile(LocalContext.current)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .background(Color(0xFF1E293B), RoundedCornerShape(20.dp))
+                            .clickable { onSwitchUser() }
+                            .padding(horizontal = 10.dp, vertical = 5.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(22.dp)
+                                .background(WhatsAppGreen, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = userProfile?.fullName?.take(1)?.uppercase() ?: "U",
+                                color = Color.Black,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "${userProfile?.fullName ?: "User"} (${userProfile?.rollNumber ?: ""})",
+                            color = Color.White,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Icon(
+                            Icons.Default.SwapHoriz,
+                            contentDescription = "Switch User",
+                            tint = WhatsAppTextMuted,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
                 }
-                Box(
+            }
+
+            // WhatsApp Real-Time Peer Search Bar (Name or Roll Number)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(WhatsAppHeader)
+                    .padding(horizontal = 14.dp, vertical = 6.dp)
+            ) {
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    placeholder = {
+                        Text(
+                            text = "Search peer by name or roll number...",
+                            color = WhatsAppTextMuted,
+                            fontSize = 12.sp
+                        )
+                    },
+                    leadingIcon = {
+                        Icon(
+                            Icons.Default.Search,
+                            contentDescription = "Search",
+                            tint = if (searchQuery.isNotBlank()) WhatsAppGreen else WhatsAppTextMuted,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    },
+                    trailingIcon = {
+                        if (searchQuery.isNotBlank()) {
+                            IconButton(onClick = { searchQuery = "" }, modifier = Modifier.size(24.dp)) {
+                                Icon(Icons.Default.Close, contentDescription = "Clear", tint = WhatsAppTextMuted, modifier = Modifier.size(16.dp))
+                            }
+                        }
+                    },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = WhatsAppIncoming,
+                        unfocusedContainerColor = WhatsAppIncoming,
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White,
+                        focusedBorderColor = WhatsAppGreen,
+                        unfocusedBorderColor = Color.Transparent
+                    ),
+                    shape = RoundedCornerShape(24.dp),
+                    singleLine = true,
                     modifier = Modifier
-                        .background(WhatsAppGreen.copy(alpha = 0.15f), shape = RoundedCornerShape(999.dp))
-                        .border(1.dp, WhatsAppGreen.copy(alpha = 0.4f), shape = RoundedCornerShape(999.dp))
-                        .padding(horizontal = 10.dp, vertical = 4.dp)
-                ) {
-                    Text(
-                        text = "${onlineDirectChats.size} PEERS IN RANGE",
-                        color = WhatsAppGreen,
-                        fontSize = 9.5.sp,
-                        fontWeight = FontWeight.Black
-                    )
-                }
+                        .fillMaxWidth()
+                        .height(52.dp)
+                )
             }
 
             LazyColumn(
@@ -220,7 +313,7 @@ fun WhatsAppInboxView(
                     )
                 }
 
-                if (onlineDirectChats.isEmpty()) {
+                if (filteredDirectChats.isEmpty()) {
                     item {
                         EmptyStateHint(
                             title = "Scanning direct physical radios...",
@@ -228,7 +321,7 @@ fun WhatsAppInboxView(
                         )
                     }
                 } else {
-                    items(onlineDirectChats) { conv ->
+                    items(filteredDirectChats) { conv ->
                         WhatsAppConversationRow(
                             conversation = conv,
                             onClick = { onSelectConversation(conv) }
@@ -249,7 +342,7 @@ fun WhatsAppInboxView(
                         )
                     }
 
-                    items(multiHopChats) { conv ->
+                    items(filteredMultiHopChats) { conv ->
                         WhatsAppConversationRow(
                             conversation = conv,
                             onClick = { onSelectConversation(conv) }
@@ -1017,15 +1110,17 @@ fun WhatsAppConversationRow(
                     Text(
                         text = conversation.title,
                         color = Color.White,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold
+                        fontSize = 14.5.sp,
+                        fontWeight = FontWeight.Bold
                     )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = "(${conversation.rollNumber})",
-                        color = WhatsAppTextMuted,
-                        fontSize = 10.5.sp
-                    )
+                    if (conversation.title != conversation.rollNumber && conversation.rollNumber.isNotBlank() && !conversation.isBroadcast) {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "(${conversation.rollNumber})",
+                            color = WhatsAppTextMuted,
+                            fontSize = 11.sp
+                        )
+                    }
                 }
                 Text(
                     text = conversation.lastMessageTimestamp,

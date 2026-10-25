@@ -22,6 +22,7 @@ class BleAdvertiserDaemon(
     private val bluetoothAdapter: BluetoothAdapter?,
     private var localRole: UserRole,
     private var localRollNumber: String,
+    private var localName: String = "Student",
     private val coroutineScope: CoroutineScope
 ) {
     companion object {
@@ -75,10 +76,11 @@ class BleAdvertiserDaemon(
     }
 
     @SuppressLint("MissingPermission")
-    fun updateIdentity(newRole: UserRole, newRollNumber: String) {
+    fun updateIdentity(newRole: UserRole, newRollNumber: String, newName: String = localName) {
         localRole = newRole
         localRollNumber = newRollNumber
-        Log.i(TAG, "Updating advertising identity to Roll=$newRollNumber, Role=${newRole.title}")
+        localName = newName
+        Log.i(TAG, "Updating advertising identity to Roll=$newRollNumber, Name=$newName, Role=${newRole.title}")
         if (isAdvertising) {
             stop()
             start()
@@ -109,26 +111,37 @@ class BleAdvertiserDaemon(
                 .setTimeout(0)
                 .build()
 
-            // 20-Byte Compact Payload (< 31-byte legacy BLE limit)
-            val buffer = ByteBuffer.allocate(20)
+            // 22-Byte Compact Payload (< 31-byte legacy BLE limit, guaranteed zero overflow or DATA_TOO_LARGE)
+            val rollBytes = localRollNumber.toByteArray(StandardCharsets.UTF_8)
+            val rollLen = minOf(rollBytes.size, 8)
+
+            val nameBytes = localName.toByteArray(StandardCharsets.UTF_8)
+            val maxNameLen = minOf(nameBytes.size, 14 - rollLen)
+            val nameLen = maxOf(0, maxNameLen)
+
+            val buffer = ByteBuffer.allocate(22)
             buffer.put(0x01.toByte()) // Byte 0: Protocol Version 1
             buffer.put(localRole.code) // Byte 1: Stakeholder Role Code (0..5)
             buffer.put(if (isSosActive) 0x01.toByte() else 0x00.toByte()) // Byte 2: Crisis / SOS Flag
 
-            // Bytes 3..17: Roll Number payload (Length byte + up to 14 ASCII characters)
-            val rollBytes = localRollNumber.toByteArray(StandardCharsets.UTF_8)
-            val rollLen = minOf(rollBytes.size, 14)
-            buffer.put(rollLen.toByte()) // Byte 3: Roll number length
-            buffer.put(rollBytes, 0, rollLen) // Bytes 4..(4+rollLen-1)
+            // Roll Number (Length byte + up to 8 ASCII characters)
+            buffer.put(rollLen.toByte()) // Byte 3
+            buffer.put(rollBytes, 0, rollLen)
 
-            // Pad remaining bytes up to index 18
-            val remainingPad = 18 - buffer.position()
+            // Name (Length byte + up to maxNameLen ASCII characters)
+            buffer.put(nameLen.toByte()) // Byte 4 + rollLen
+            if (nameLen > 0) {
+                buffer.put(nameBytes, 0, nameLen)
+            }
+
+            // Pad remaining bytes up to index 20
+            val remainingPad = 20 - buffer.position()
             for (i in 0 until remainingPad) {
                 buffer.put(0.toByte())
             }
 
-            buffer.put(84.toByte()) // Byte 18: Battery level
-            buffer.put((++sequenceNumber % 256).toByte()) // Byte 19: Sequence counter
+            buffer.put(84.toByte()) // Byte 20: Battery level
+            buffer.put((++sequenceNumber % 256).toByte()) // Byte 21: Sequence counter
 
             val data = AdvertiseData.Builder()
                 .addManufacturerData(BleScannerDaemon.ANITS_MANUFACTURER_ID, buffer.array())
@@ -138,7 +151,7 @@ class BleAdvertiserDaemon(
 
             val scanResponse = AdvertiseData.Builder()
                 .addServiceUuid(BleScannerDaemon.MESH_PARCEL_UUID)
-                .setIncludeDeviceName(true)
+                .setIncludeDeviceName(false)
                 .build()
 
             try {

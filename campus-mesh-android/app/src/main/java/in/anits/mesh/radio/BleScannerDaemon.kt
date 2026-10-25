@@ -119,7 +119,7 @@ class BleScannerDaemon(
                 val crisisFlag = mfgData[2]
 
                 // Extract Roll Number directly from beacon payload!
-                val rollLen = mfgData[3].toInt().coerceIn(1, minOf(14, mfgData.size - 4))
+                val rollLen = mfgData[3].toInt().coerceIn(1, minOf(8, mfgData.size - 4))
                 val rollNumber = String(mfgData, 4, rollLen, StandardCharsets.UTF_8).trim()
 
                 if (rollNumber.isBlank()) return@launch
@@ -130,7 +130,27 @@ class BleScannerDaemon(
                 }
 
                 val role = UserRole.fromByte(roleByte)
+
+                // Extract Name from beacon payload!
+                var peerName = ""
+                val nameOffset = 4 + rollLen
+                if (mfgData.size > nameOffset) {
+                    val nameLen = mfgData[nameOffset].toInt().coerceIn(0, minOf(8, mfgData.size - nameOffset - 1))
+                    if (nameLen > 0) {
+                        peerName = String(mfgData, nameOffset + 1, nameLen, StandardCharsets.UTF_8).trim()
+                    }
+                }
+
+                if (peerName.isNotBlank() && !peerName.startsWith("Roll No:", ignoreCase = true) && !peerName.equals("User", ignoreCase = true)) {
+                    UserManager.registerKnownPeer(rollNumber, peerName, role = role)
+                }
+
                 val summary = UserManager.resolvePeer(rollNumber, roleByte)
+
+                val mac = result.device.address ?: "00:00:00:00:00:00"
+                if (mac != "00:00:00:00:00:00") {
+                    peerDao.deleteOtherPeersWithMac(mac, rollNumber)
+                }
 
                 val peer = PeerEntity(
                     nodeId = rollNumber,

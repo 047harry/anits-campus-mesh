@@ -148,6 +148,10 @@ class BluetoothRfcommTransport(
                     val packetType = json.optInt("packetType", PacketType.ROUTINE_CHAT.code.toInt()).toByte()
                     val isEncrypted = json.optBoolean("isEncrypted", false)
                     val senderRoll = json.optString("senderRoll", "")
+                    val senderName = json.optString("senderName", "")
+                    if (senderRoll.isNotBlank() && senderName.isNotBlank() && !senderName.startsWith("Roll No:", ignoreCase = true) && !senderName.equals("User", ignoreCase = true)) {
+                        UserManager.registerKnownPeer(senderRoll, senderName)
+                    }
                     var rawText = json.optString("text", "")
 
                     if (isEncrypted && !isBroadcast) {

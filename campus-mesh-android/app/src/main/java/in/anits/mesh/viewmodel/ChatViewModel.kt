@@ -15,6 +15,8 @@ import `in`.anits.mesh.model.PacketType
 import `in`.anits.mesh.model.UserRole
 import `in`.anits.mesh.radio.RadioCoordinator
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import org.json.JSONObject
@@ -66,8 +68,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     // Manually created custom private chats (e.g., student in MECH selected via Directory Picker)
     private val _customConversations = MutableStateFlow<Map<String, ChatConversation>>(emptyMap())
 
-    // Discovered physical peers in BLE range
-    val activePeers: StateFlow<List<PeerEntity>> = peerDao.getActivePeersFlow(0L)
+    // Discovered physical peers currently active in BLE range (last 12 seconds only)
+    val activePeers: StateFlow<List<PeerEntity>> = peerDao.getAllPeersFlow()
+        .map { peers ->
+            val activeThreshold = System.currentTimeMillis() - 12_000L
+            peers.filter { it.lastSeenEpoch >= activeThreshold && it.rollNumber != "A23126551000" }
+        }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // Observe genuine messages from Room database (Single Source of Truth)
@@ -98,6 +104,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 peerDao.purgeDefaultPlaceholder()
             } catch (e: Exception) {
                 // Safe
+            }
+            // Auto-pruner loop: keep discovered peers strictly live (<= 12 seconds)
+            while (isActive) {
+                try {
+                    val threshold = System.currentTimeMillis() - 12_000L
+                    peerDao.pruneStalePeers(threshold)
+                } catch (e: Exception) {}
+                delay(3_000L)
             }
         }
     }
@@ -308,6 +322,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             val senderRoll = json.optString("senderRoll", entity.sourceId)
             val roleStr = json.optString("senderRole", UserRole.STUDENT_OCCUPANT.name)
             val senderRole = try { UserRole.valueOf(roleStr) } catch (e: Exception) { UserRole.STUDENT_OCCUPANT }
+
+            if (senderRoll.isNotBlank() && senderName.isNotBlank() && !senderName.equals("User", ignoreCase = true) && !senderName.startsWith("Roll No:", ignoreCase = true)) {
+                UserManager.registerKnownPeer(senderRoll, senderName, role = senderRole)
+            }
             val destRoll = json.optString("destRoll", entity.destId)
 
             val hopCount = json.optInt("hopCount", entity.hopCount)
@@ -417,31 +435,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
-        // 4. EXISTING CONVERSATIONS WITH MESSAGE HISTORY (Out-of-range multi-hop chats)
-        val conversationIdsWithHistory = msgList.map { it.conversationId }.distinct()
-        for (convId in conversationIdsWithHistory) {
-            if (convId == "BROADCAST" || handledConversations.contains(convId)) continue
-            val summary = UserManager.resolvePeer(convId, UserRole.STUDENT_OCCUPANT.code)
-            val pMsgs = msgList.filter { it.conversationId == convId }
-            val lastMsg = pMsgs.lastOrNull() ?: continue
-
-            list.add(
-                ChatConversation(
-                    conversationId = convId,
-                    title = summary.fullName,
-                    rollNumber = summary.rollNumber.ifBlank { convId },
-                    role = summary.role,
-                    department = summary.department,
-                    isBroadcast = false,
-                    isOnlineInRange = false,
-                    rssi = 0,
-                    lastMessageText = lastMsg.text,
-                    lastMessageTimestamp = lastMsg.timestamp,
-                    lastMessageDeliveryStatus = lastMsg.deliveryStatus
-                )
-            )
-        }
-
+        // Inactive peers from past logins / out-of-range historical messages are excluded
+        // so the inbox only contains currently live mesh peers in range!
         return list
     }
 }

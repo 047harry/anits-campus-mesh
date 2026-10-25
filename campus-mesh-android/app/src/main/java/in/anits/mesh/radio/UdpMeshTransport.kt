@@ -178,6 +178,9 @@ class UdpMeshTransport(
                 val packetType = json.optInt("packetType", PacketType.ROUTINE_CHAT.code.toInt()).toByte()
                 var rawText = json.optString("text", "")
                 val senderName = json.optString("senderName", "Peer")
+                if (senderRoll.isNotBlank() && senderName.isNotBlank() && !senderName.startsWith("Roll No:", ignoreCase = true) && !senderName.equals("User", ignoreCase = true) && !senderName.equals("Peer", ignoreCase = true)) {
+                    UserManager.registerKnownPeer(senderRoll, senderName)
+                }
 
                 // Decrypt payload if end-to-end encrypted for 1-to-1 private chat
                 if (isEncrypted && !isBroadcast) {

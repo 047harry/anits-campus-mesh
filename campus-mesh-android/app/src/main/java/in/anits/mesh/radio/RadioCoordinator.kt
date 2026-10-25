@@ -46,6 +46,7 @@ class RadioCoordinator(
 
     private var localRole: UserRole = UserManager.getProfile(context)?.role ?: UserRole.STUDENT_OCCUPANT
     private var localRollNumber: String = UserManager.getProfile(context)?.rollNumber ?: "A23126551000"
+    private var localName: String = UserManager.getProfile(context)?.fullName ?: "Student"
 
     private val bleScanner: BleScannerDaemon = BleScannerDaemon(
         context = context,
@@ -63,6 +64,7 @@ class RadioCoordinator(
         bluetoothAdapter = bluetoothAdapter,
         localRole = localRole,
         localRollNumber = localRollNumber,
+        localName = localName,
         coroutineScope = coroutineScope
     )
 
@@ -97,9 +99,10 @@ class RadioCoordinator(
         val profile = UserManager.getProfile(context)
         localRole = profile?.role ?: UserRole.STUDENT_OCCUPANT
         localRollNumber = profile?.rollNumber ?: "A23126551000"
+        localName = profile?.fullName ?: "Student"
 
         bleScanner.setLocalRollNumber(localRollNumber)
-        bleAdvertiser.updateIdentity(localRole, localRollNumber)
+        bleAdvertiser.updateIdentity(localRole, localRollNumber, localName)
         Log.i(TAG, "Coordinator updated profile: Roll=" + localRollNumber + ", Role=" + localRole.title)
     }
 

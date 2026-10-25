@@ -50,6 +50,8 @@ object UserManager {
     private const val KEY_PUB_KEY = "pub_key"
     private const val KEY_PRIV_KEY = "priv_key"
     private const val KEY_PASS_HASH = "pass_hash"
+    private const val KEY_CACHED_DIR_JSON = "cached_directory_json"
+    private var appContext: Context? = null
 
     // Supabase FinalDance Project Config
     const val SUPABASE_URL = "https://ilpmxbeuhdtobwpgzgcf.supabase.co"
@@ -62,6 +64,61 @@ object UserManager {
     private val _campusDirectory = MutableStateFlow<Map<String, CampusUserSummary>>(emptyMap())
     val campusDirectory: StateFlow<Map<String, CampusUserSummary>> = _campusDirectory.asStateFlow()
 
+    private fun persistDirectoryToDisk() {
+        try {
+            val ctx = appContext ?: return
+            val map = _campusDirectory.value
+            val array = JSONArray()
+            val seenRolls = mutableSetOf<String>()
+            map.values.forEach { user ->
+                if (!seenRolls.contains(user.rollNumber)) {
+                    seenRolls.add(user.rollNumber)
+                    val obj = JSONObject().apply {
+                        put("roll_number", user.rollNumber)
+                        put("full_name", user.fullName)
+                        put("department", user.department)
+                        put("user_role", user.role.name)
+                        put("node_id", user.nodeId)
+                        put("pub_key", user.publicKeyHex)
+                    }
+                    array.put(obj)
+                }
+            }
+            getPrefs(ctx).edit().putString(KEY_CACHED_DIR_JSON, array.toString()).apply()
+        } catch (e: Exception) {
+            // Ignore
+        }
+    }
+
+    private fun loadCachedDirectoryFromDisk(ctx: Context) {
+        try {
+            val jsonStr = getPrefs(ctx).getString(KEY_CACHED_DIR_JSON, "") ?: ""
+            if (jsonStr.isNotBlank()) {
+                val array = JSONArray(jsonStr)
+                val dirMap = _campusDirectory.value.toMutableMap()
+                for (i in 0 until array.length()) {
+                    val obj = array.getJSONObject(i)
+                    val roll = obj.optString("roll_number", "")
+                    val name = obj.optString("full_name", "")
+                    val dept = obj.optString("department", "ANITS")
+                    val roleStr = obj.optString("user_role", "STUDENT_OCCUPANT")
+                    val role = try { UserRole.valueOf(roleStr) } catch (e: Exception) { UserRole.STUDENT_OCCUPANT }
+                    val nId = obj.optString("node_id", "node_$roll")
+                    val pub = obj.optString("pub_key", "")
+                    if (roll.isNotBlank() && name.isNotBlank() && !name.startsWith("Roll No:", ignoreCase = true)) {
+                        val summary = CampusUserSummary(roll, name, dept, role, nId, pub)
+                        dirMap[roll] = summary
+                        dirMap[nId] = summary
+                    }
+                }
+                _campusDirectory.value = dirMap
+                persistDirectoryToDisk()
+            }
+        } catch (e: Exception) {
+            // Ignore
+        }
+    }
+
     fun hashPassword(password: String): String {
         val digest = MessageDigest.getInstance("SHA-256")
         val hash = digest.digest(password.trim().toByteArray(Charsets.UTF_8))
@@ -69,18 +126,27 @@ object UserManager {
     }
 
     fun isRegistered(context: Context): Boolean {
+        appContext = context.applicationContext
         val prefs = getPrefs(context)
         val registered = prefs.getBoolean(KEY_IS_REGISTERED, false)
         if (registered) {
             if (_currentUser.value == null) {
                 _currentUser.value = loadProfile(context)
             }
+            if (_campusDirectory.value.isEmpty()) {
+                loadCachedDirectoryFromDisk(context)
+            }
+            val prof = _currentUser.value ?: loadProfile(context)
+            if (prof != null) {
+                val mySummary = CampusUserSummary(prof.rollNumber, prof.fullName, prof.department, prof.role, prof.nodeId, prof.publicKeyHex)
+                _campusDirectory.value = _campusDirectory.value + (prof.rollNumber to mySummary) + (prof.nodeId to mySummary)
+            }
             // Auto-sync profile and directory in background on start
             CoroutineScope(Dispatchers.IO).launch {
-                val prof = _currentUser.value ?: loadProfile(context)
+                val p = _currentUser.value ?: loadProfile(context)
                 val passHash = prefs.getString(KEY_PASS_HASH, "") ?: ""
-                if (prof != null) {
-                    syncUserToCloud(prof, passHash)
+                if (p != null) {
+                    syncUserToCloud(p, passHash)
                 }
                 syncCampusDirectory()
             }
@@ -89,8 +155,12 @@ object UserManager {
     }
 
     fun getProfile(context: Context): UserProfile? {
+        appContext = context.applicationContext
         if (_currentUser.value == null) {
             _currentUser.value = loadProfile(context)
+        }
+        if (_campusDirectory.value.isEmpty()) {
+            loadCachedDirectoryFromDisk(context)
         }
         return _currentUser.value
     }
@@ -290,10 +360,33 @@ object UserManager {
                     if (roll.isNotBlank()) dirMap[roll] = summary
                 }
                 _campusDirectory.value = dirMap
+                persistDirectoryToDisk()
             }
         } catch (e: Exception) {
             // Ignore offline errors
         }
+    }
+
+    fun registerKnownPeer(
+        rollNumber: String,
+        fullName: String,
+        department: String = "ANITS",
+        role: UserRole = UserRole.STUDENT_OCCUPANT
+    ) {
+        val cleanRoll = rollNumber.trim().uppercase()
+        val cleanName = fullName.trim()
+        if (cleanRoll.isBlank() || cleanName.isBlank() || cleanName.equals("User", ignoreCase = true) || cleanName.startsWith("Roll No:", ignoreCase = true)) return
+
+        val summary = CampusUserSummary(
+            rollNumber = cleanRoll,
+            fullName = cleanName,
+            department = department,
+            role = role,
+            nodeId = "node_$cleanRoll",
+            publicKeyHex = ""
+        )
+        _campusDirectory.value = _campusDirectory.value + (cleanRoll to summary) + ("node_$cleanRoll" to summary)
+        persistDirectoryToDisk()
     }
 
     fun resolvePeer(nodeIdOrRoll: String, fallbackRoleByte: Byte): CampusUserSummary {
@@ -310,7 +403,7 @@ object UserManager {
                 UserRole.HOD -> "Head of Department"
                 UserRole.FACULTY_WARDEN -> "Faculty / Hostel Warden"
                 UserRole.CLINIC_SECURITY -> "Clinic Triage / Security"
-                UserRole.STUDENT_OCCUPANT -> "Roll No: $cleanRoll"
+                UserRole.STUDENT_OCCUPANT -> cleanRoll
             },
             department = "ANITS",
             role = fallbackRole,
