@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.le.*
 import android.content.Context
+import android.util.Log
 import `in`.anits.mesh.model.UserRole
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -11,16 +12,20 @@ import kotlinx.coroutines.launch
 import java.nio.ByteBuffer
 
 /**
- * Low-Power Bluetooth Low Energy Background Advertiser Daemon.
- * Broadcasts node presence, role badges, and immediate SOS beacon alerts in the 24-byte payload.
+ * Real Hardware BLE Background Advertiser Daemon.
+ * Broadcasts node presence, role badges, and crisis alerts in 20-byte manufacturer data.
  */
 class BleAdvertiserDaemon(
     private val context: Context,
     private val bluetoothAdapter: BluetoothAdapter?,
-    private val localNodeId: ByteArray,
-    private val localRole: UserRole,
+    private var localNodeId: ByteArray,
+    private var localRole: UserRole,
     private val coroutineScope: CoroutineScope
 ) {
+    companion object {
+        private const val TAG = "BleAdvertiser"
+    }
+
     private var advertiser: BluetoothLeAdvertiser? = null
     private var isAdvertising = false
     private var isSosActive = false
@@ -29,17 +34,27 @@ class BleAdvertiserDaemon(
     private val advertiseCallback = object : AdvertiseCallback() {
         override fun onStartSuccess(settingsInEffect: AdvertiseSettings?) {
             isAdvertising = true
+            Log.i(TAG, "✓ BLE Advertising ACTIVE: Role=${localRole.title}, Power=${settingsInEffect?.txPowerLevel}")
         }
 
         override fun onStartFailure(errorCode: Int) {
             isAdvertising = false
+            Log.e(TAG, "✗ BLE Advertising FAILED with code $errorCode (1=TooLarge, 2=TooMany, 3=AlreadyStarted, 4=InternalErr, 5=Unsupported)")
         }
     }
 
     @SuppressLint("MissingPermission")
     fun start() {
-        if (isAdvertising || bluetoothAdapter == null || !bluetoothAdapter.isEnabled) return
-        advertiser = bluetoothAdapter.bluetoothLeAdvertiser ?: return
+        if (isAdvertising) return
+        if (bluetoothAdapter == null || !bluetoothAdapter.isEnabled) {
+            Log.w(TAG, "Cannot start advertising: Bluetooth is disabled or unavailable")
+            return
+        }
+        advertiser = bluetoothAdapter.bluetoothLeAdvertiser
+        if (advertiser == null) {
+            Log.e(TAG, "BluetoothLeAdvertiser is NULL on this device hardware")
+            return
+        }
 
         broadcastBeacon()
     }
@@ -49,10 +64,22 @@ class BleAdvertiserDaemon(
         if (isAdvertising) {
             try {
                 advertiser?.stopAdvertising(advertiseCallback)
+                Log.i(TAG, "BLE Advertising stopped")
             } catch (e: Exception) {
-                // Handle adapter off
+                Log.w(TAG, "Error stopping advertising: ${e.message}")
             }
             isAdvertising = false
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    fun updateIdentity(newNodeId: ByteArray, newRole: UserRole) {
+        localNodeId = newNodeId
+        localRole = newRole
+        Log.i(TAG, "Updating advertising identity to Role=${newRole.title}")
+        if (isAdvertising) {
+            stop()
+            start()
         }
     }
 
@@ -74,23 +101,25 @@ class BleAdvertiserDaemon(
     private fun broadcastBeacon() {
         coroutineScope.launch(Dispatchers.IO) {
             val settings = AdvertiseSettings.Builder()
-                .setAdvertiseMode(
-                    if (isSosActive) AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY
-                    else AdvertiseSettings.ADVERTISE_MODE_BALANCED
-                )
+                .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
                 .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH)
                 .setConnectable(false)
                 .setTimeout(0)
                 .build()
 
-            // Construct 20-Byte Compact Payload (< 31-byte legacy BLE limit)
+            // 20-Byte Compact Payload (< 31-byte legacy BLE limit)
             val buffer = ByteBuffer.allocate(20)
-            buffer.put(0x01.toByte()) // Version 1
-            buffer.put(localRole.code) // User Role
-            buffer.put(if (isSosActive) 0x01.toByte() else 0x00.toByte()) // Crisis Flag
-            buffer.put(localNodeId.sliceArray(0 until 12)) // 12-Byte Node ID Prefix
-            buffer.putInt(++sequenceNumber) // 4-Byte Sequence Counter
-            buffer.put(84.toByte()) // Battery
+            buffer.put(0x01.toByte()) // Byte 0: Protocol Version 1
+            buffer.put(localRole.code) // Byte 1: Stakeholder Role Code (0..5)
+            buffer.put(if (isSosActive) 0x01.toByte() else 0x00.toByte()) // Byte 2: Crisis / SOS Flag
+
+            // Bytes 3..14: Fixed 12-Byte Node ID Prefix
+            val idSlice = ByteArray(12)
+            System.arraycopy(localNodeId, 0, idSlice, 0, minOf(localNodeId.size, 12))
+            buffer.put(idSlice)
+
+            buffer.put(84.toByte()) // Byte 15: Battery level
+            buffer.putInt(++sequenceNumber) // Bytes 16..19: Sequence counter
 
             val data = AdvertiseData.Builder()
                 .addManufacturerData(BleScannerDaemon.ANITS_MANUFACTURER_ID, buffer.array())
@@ -101,7 +130,7 @@ class BleAdvertiserDaemon(
             try {
                 advertiser?.startAdvertising(settings, data, advertiseCallback)
             } catch (e: Exception) {
-                // Catch hardware limits
+                Log.e(TAG, "Exception in startAdvertising: ${e.message}", e)
             }
         }
     }

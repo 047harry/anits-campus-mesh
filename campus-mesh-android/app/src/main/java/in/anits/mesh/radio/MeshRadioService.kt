@@ -61,6 +61,10 @@ class MeshRadioService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (::radioCoordinator.isInitialized) {
+            radioCoordinator.updateProfile()
+            radioCoordinator.startMeshServices()
+        }
         return START_STICKY
     }
 

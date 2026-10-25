@@ -3,47 +3,63 @@ package `in`.anits.mesh.radio
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
 import android.content.Context
+import android.util.Log
 import `in`.anits.mesh.data.MeshDatabase
+import `in`.anits.mesh.data.UserManager
 import `in`.anits.mesh.data.entity.MessageEntity
+import `in`.anits.mesh.data.entity.PeerEntity
 import `in`.anits.mesh.data.entity.SeenCacheEntity
 import `in`.anits.mesh.model.MeshPacket
 import `in`.anits.mesh.model.PacketType
 import `in`.anits.mesh.model.UserRole
-import `in`.anits.mesh.protocol.PacketSerializer
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
-import java.security.SecureRandom
+import java.nio.charset.StandardCharsets
 
 /**
- * Unified Dual-Radio Hardware Transport Coordinator.
- * Manages the energy synergy between passive BLE discovery and high-speed Wi-Fi Aware.
+ * Unified Hardware Transport Coordinator.
+ * Controls real physical BLE scanning and advertising between devices.
  */
 class RadioCoordinator(
     private val context: Context,
     private val database: MeshDatabase,
     private val coroutineScope: CoroutineScope
 ) {
+    companion object {
+        private const val TAG = "RadioCoordinator"
+    }
+
     private val bluetoothAdapter: BluetoothAdapter? by lazy {
         val manager = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
         manager?.adapter
     }
 
-    private val localNodeId: ByteArray = generateOrLoadNodeId()
-    private val localRole: UserRole = `in`.anits.mesh.data.UserManager.getProfile(context)?.role ?: UserRole.STUDENT_OCCUPANT
+    private val _peerEvents = MutableSharedFlow<String>(extraBufferCapacity = 16)
+    val peerEvents: SharedFlow<String> = _peerEvents.asSharedFlow()
+
+    private var localNodeIdBytes: ByteArray = getCanonicalNodeId()
+    private var localRole: UserRole = UserManager.getProfile(context)?.role ?: UserRole.STUDENT_OCCUPANT
 
     private val bleScanner: BleScannerDaemon = BleScannerDaemon(
         context = context,
         bluetoothAdapter = bluetoothAdapter,
         peerDao = database.peerDao(),
-        coroutineScope = coroutineScope
+        localNodeIdHex = localNodeIdBytes.take(12).toByteArray().joinToString("") { "%02x".format(it) },
+        coroutineScope = coroutineScope,
+        onPeerDiscovered = { peer, logMessage ->
+            _peerEvents.tryEmit(logMessage)
+        }
     )
 
     private val bleAdvertiser: BleAdvertiserDaemon = BleAdvertiserDaemon(
         context = context,
         bluetoothAdapter = bluetoothAdapter,
-        localNodeId = localNodeId,
+        localNodeId = localNodeIdBytes,
         localRole = localRole,
         coroutineScope = coroutineScope
     )
@@ -57,16 +73,29 @@ class RadioCoordinator(
     private val _isMeshActive = MutableStateFlow(false)
     val isMeshActive: StateFlow<Boolean> = _isMeshActive.asStateFlow()
 
+    fun updateProfile() {
+        val profile = UserManager.getProfile(context)
+        localRole = profile?.role ?: UserRole.STUDENT_OCCUPANT
+        localNodeIdBytes = getCanonicalNodeId()
+
+        val idHex = localNodeIdBytes.take(12).toByteArray().joinToString("") { "%02x".format(it) }
+        bleScanner.setLocalNodeIdHex(idHex)
+        bleAdvertiser.updateIdentity(localNodeIdBytes, localRole)
+        Log.i(TAG, "Coordinator updated profile: Role=${localRole.title}, ID=$idHex")
+    }
+
     fun startMeshServices() {
         if (_isMeshActive.value) return
         _isMeshActive.value = true
 
+        updateProfile()
         bleScanner.start()
         bleAdvertiser.start()
 
         if (wifiAwareManager.isSupported) {
             wifiAwareManager.start()
         }
+        Log.i(TAG, "Hardware Mesh Services started successfully")
     }
 
     fun stopMeshServices() {
@@ -76,18 +105,14 @@ class RadioCoordinator(
         bleScanner.stop()
         bleAdvertiser.stop()
         wifiAwareManager.stop()
+        Log.i(TAG, "Hardware Mesh Services stopped")
     }
 
-    /**
-     * Broadcasts a high-priority Crisis SOS alert.
-     * Escalates BLE to continuous low-latency mode and broadcasts SOS mini-beacon.
-     */
     fun broadcastSosEmergency(packet: MeshPacket) {
         bleAdvertiser.triggerSosBeacon()
         bleScanner.setCrisisMode(true)
 
         coroutineScope.launch(Dispatchers.IO) {
-            // Store into local message table with Priority 1
             val entity = MessageEntity(
                 messageUuid = packet.messageUuid.toString(),
                 packetType = PacketType.EMERGENCY_SOS.code,
@@ -108,13 +133,8 @@ class RadioCoordinator(
     private fun processIncomingPacket(packet: MeshPacket) {
         coroutineScope.launch(Dispatchers.IO) {
             val uuidStr = packet.messageUuid.toString()
+            if (database.seenCacheDao().isSeen(uuidStr)) return@launch
 
-            // 1. Storm Barrier: Check seen cache
-            if (database.seenCacheDao().isSeen(uuidStr)) {
-                return@launch // Silently drop duplicate packet in O(1)
-            }
-
-            // 2. Mark as seen
             database.seenCacheDao().markSeen(
                 SeenCacheEntity(
                     messageUuid = uuidStr,
@@ -122,7 +142,6 @@ class RadioCoordinator(
                 )
             )
 
-            // 3. Store into local database
             val entity = MessageEntity(
                 messageUuid = uuidStr,
                 packetType = packet.packetType.code,
@@ -137,18 +156,15 @@ class RadioCoordinator(
                 createdEpoch = packet.timestampEpochMs
             )
             database.messageDao().insertMessage(entity)
-
-            // 4. Relay logic: decrement TTL and forward if TTL > 0
-            if (packet.remainingTtl > 1) {
-                packet.remainingTtl = (packet.remainingTtl - 1).toByte()
-                // Forward via active radio
-            }
         }
     }
 
-    private fun generateOrLoadNodeId(): ByteArray {
-        val id = ByteArray(16)
-        SecureRandom().nextBytes(id)
-        return id
+    private fun getCanonicalNodeId(): ByteArray {
+        val profile = UserManager.getProfile(context)
+        val nodeIdStr = profile?.nodeId ?: "node_default00"
+        val bytes = ByteArray(16)
+        val strBytes = nodeIdStr.toByteArray(StandardCharsets.UTF_8)
+        System.arraycopy(strBytes, 0, bytes, 0, minOf(strBytes.size, 16))
+        return bytes
     }
 }

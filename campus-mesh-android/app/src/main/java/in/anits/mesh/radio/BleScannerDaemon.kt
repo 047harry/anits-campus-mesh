@@ -5,6 +5,7 @@ import android.bluetooth.BluetoothAdapter
 import android.bluetooth.le.*
 import android.content.Context
 import android.os.ParcelUuid
+import android.util.Log
 import `in`.anits.mesh.data.dao.PeerDao
 import `in`.anits.mesh.data.entity.PeerEntity
 import `in`.anits.mesh.model.UserRole
@@ -15,27 +16,26 @@ import kotlinx.coroutines.flow.asStateFlow
 import java.util.UUID
 
 /**
- * Low-Power Bluetooth Low Energy Background Scanner Daemon.
- * Scans for nearby campus mesh peers using duty-cycled BLE 5.0 scanning.
- * Extracts 24-byte mini-beacons and registers neighbors into the Room database.
+ * Real Hardware BLE Background Scanner Daemon.
+ * Scans continuous low-latency for nearby peer devices broadcasting ANITS manufacturer data.
  */
 class BleScannerDaemon(
     private val context: Context,
     private val bluetoothAdapter: BluetoothAdapter?,
     private val peerDao: PeerDao,
-    private val coroutineScope: CoroutineScope
+    private var localNodeIdHex: String,
+    private val coroutineScope: CoroutineScope,
+    private val onPeerDiscovered: ((PeerEntity, String) -> Unit)? = null
 ) {
     companion object {
+        private const val TAG = "BleScanner"
         val MESH_SERVICE_UUID: UUID = UUID.fromString("0000FEF1-0000-1000-8000-00805F9B34FB")
         val MESH_PARCEL_UUID: ParcelUuid = ParcelUuid(MESH_SERVICE_UUID)
         const val ANITS_MANUFACTURER_ID = 0x02E5
-        private const val SCAN_ACTIVE_WINDOW_MS = 2500L
-        private const val SCAN_REST_WINDOW_MS = 7500L // 25% duty cycle in standby
     }
 
     private var scanner: BluetoothLeScanner? = null
     private var isScanning = false
-    private var dutyCycleJob: Job? = null
 
     private val _isCrisisMode = MutableStateFlow(false)
     val isCrisisMode: StateFlow<Boolean> = _isCrisisMode.asStateFlow()
@@ -50,28 +50,51 @@ class BleScannerDaemon(
         }
 
         override fun onScanFailed(errorCode: Int) {
-            // Log scan failure and schedule restart
+            Log.e(TAG, "BLE Scan Failed with error code: $errorCode")
+            isScanning = false
         }
+    }
+
+    fun setLocalNodeIdHex(nodeIdHex: String) {
+        localNodeIdHex = nodeIdHex
     }
 
     @SuppressLint("MissingPermission")
     fun start() {
-        if (isScanning || bluetoothAdapter == null || !bluetoothAdapter.isEnabled) return
+        if (isScanning) return
+        if (bluetoothAdapter == null || !bluetoothAdapter.isEnabled) {
+            Log.w(TAG, "Cannot start scanner: Bluetooth is off or unavailable")
+            return
+        }
         scanner = bluetoothAdapter.bluetoothLeScanner
-        isScanning = true
+        if (scanner == null) {
+            Log.e(TAG, "BluetoothLeScanner is NULL on this hardware")
+            return
+        }
 
-        startDutyCycleLoop()
+        val settings = ScanSettings.Builder()
+            .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+            .setReportDelay(0)
+            .build()
+
+        try {
+            // Scan without restrictive hardware filters so all advertisements are received
+            scanner?.startScan(null, settings, scanCallback)
+            isScanning = true
+            Log.i(TAG, "✓ Real Hardware BLE Scanner started in LOW_LATENCY mode")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to start BLE scan: ${e.message}", e)
+        }
     }
 
     @SuppressLint("MissingPermission")
     fun stop() {
-        dutyCycleJob?.cancel()
-        dutyCycleJob = null
         if (isScanning) {
             try {
                 scanner?.stopScan(scanCallback)
+                Log.i(TAG, "BLE Scanner stopped")
             } catch (e: Exception) {
-                // Handle adapter off state
+                Log.w(TAG, "Error stopping scanner: ${e.message}")
             }
             isScanning = false
         }
@@ -79,81 +102,50 @@ class BleScannerDaemon(
 
     fun setCrisisMode(enabled: Boolean) {
         _isCrisisMode.value = enabled
-        // Restart loop with zero-rest continuous low latency scanning
-        dutyCycleJob?.cancel()
-        startDutyCycleLoop()
-    }
-
-    @SuppressLint("MissingPermission")
-    private fun startDutyCycleLoop() {
-        dutyCycleJob = coroutineScope.launch(Dispatchers.IO) {
-            while (isActive && isScanning) {
-                try {
-                    val settings = ScanSettings.Builder()
-                        .setScanMode(
-                            if (_isCrisisMode.value) ScanSettings.SCAN_MODE_LOW_LATENCY
-                            else ScanSettings.SCAN_MODE_BALANCED
-                        )
-                        .setReportDelay(0)
-                        .build()
-
-                    val filter = ScanFilter.Builder()
-                        .setManufacturerData(ANITS_MANUFACTURER_ID, byteArrayOf())
-                        .build()
-
-                    scanner?.startScan(listOf(filter), settings, scanCallback)
-
-                    if (_isCrisisMode.value) {
-                        // Crisis mode: continuous scanning
-                        delay(60_000L)
-                    } else {
-                        // Standby mode: duty cycle
-                        delay(SCAN_ACTIVE_WINDOW_MS)
-                        scanner?.stopScan(scanCallback)
-                        delay(SCAN_REST_WINDOW_MS)
-                    }
-                } catch (e: Exception) {
-                    delay(5000L)
-                }
-            }
-        }
     }
 
     private fun handleScanResult(result: ScanResult) {
         val record = result.scanRecord ?: return
-        val mfgData = record.getManufacturerSpecificData(ANITS_MANUFACTURER_ID)
-        val serviceData = mfgData ?: record.getServiceData(MESH_PARCEL_UUID) ?: return
-        if (serviceData.size < 16) return
+        val mfgData = record.getManufacturerSpecificData(ANITS_MANUFACTURER_ID) ?: return
+        if (mfgData.size < 15) return
 
         coroutineScope.launch(Dispatchers.IO) {
             try {
-                val version = serviceData[0]
-                val roleByte = serviceData[1]
-                val crisisFlag = serviceData[2]
+                val version = mfgData[0]
+                val roleByte = mfgData[1]
+                val crisisFlag = mfgData[2]
 
-                val nodeIdLen = if (serviceData.size >= 19) 16 else (serviceData.size - 7)
-                val nodeIdBytes = serviceData.sliceArray(3 until (3 + nodeIdLen))
+                // Extract fixed 12-byte node ID
+                val nodeIdBytes = mfgData.sliceArray(3 until 15)
                 val nodeIdHex = nodeIdBytes.joinToString("") { "%02x".format(it) }
 
+                // Ignore packets originating from this local device!
+                if (nodeIdHex.equals(localNodeIdHex, ignoreCase = true)) {
+                    return@launch
+                }
+
+                val role = UserRole.fromByte(roleByte)
                 val peer = PeerEntity(
                     nodeId = nodeIdHex,
-                    macAddress = result.device.address,
+                    macAddress = result.device.address ?: "00:00:00:00:00:00",
                     rollNumber = null,
                     userRole = roleByte,
                     isTrusted = (roleByte <= UserRole.FACULTY_WARDEN.code),
                     rssi = result.rssi,
-                    radioType = "BLE",
+                    radioType = "BLE 5.0",
                     lastSeenEpoch = System.currentTimeMillis()
                 )
 
                 peerDao.upsertPeer(peer)
+                Log.i(TAG, "🎉 FOUND PHYSICAL PEER! Node=$nodeIdHex, Role=${role.title}, RSSI=${result.rssi}dBm")
 
-                // If peer has crisisFlag active, elevate local scanner to crisis mode immediately
+                onPeerDiscovered?.invoke(peer, "Discovered ${role.title} (${result.rssi} dBm)")
+
                 if (crisisFlag.toInt() == 0x01 && !_isCrisisMode.value) {
                     setCrisisMode(true)
                 }
             } catch (e: Exception) {
-                // Ignore malformed advertisements
+                Log.e(TAG, "Error handling scan result: ${e.message}")
             }
         }
     }

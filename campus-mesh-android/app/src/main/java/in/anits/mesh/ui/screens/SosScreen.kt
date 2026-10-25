@@ -243,24 +243,32 @@ fun SosScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .background(Color(0xFF1E293B), shape = RoundedCornerShape(8.dp))
-                            .padding(10.dp),
+                            .padding(14.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(
-                                text = "Awaiting nearby peer devices...",
-                                color = Color(0xFFCBD5E1),
-                                fontSize = 11.sp
-                            )
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Button(
-                                onClick = { mainViewModel.simulatePeerBeacon() },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB)),
-                                shape = RoundedCornerShape(8.dp),
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                            ) {
-                                Text("📡 Test Simulation: Emit Peer Signal", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                CircularProgressIndicator(
+                                    color = Color(0xFF38BDF8),
+                                    strokeWidth = 2.dp,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(
+                                    text = "Scanning 2.4 GHz BLE channels for peers...",
+                                    color = Color.White,
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
                             }
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = "Ensure Bluetooth & Location are enabled on both phones. Devices within 10-15m connect automatically.",
+                                color = Color(0xFF94A3B8),
+                                fontSize = 10.sp,
+                                lineHeight = 13.sp,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
                         }
                     }
                 } else {
@@ -268,16 +276,6 @@ fun SosScreen(
                         activePeers.forEach { peer ->
                             PeerRow(peer)
                         }
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Button(
-                        onClick = { mainViewModel.simulatePeerBeacon() },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B)),
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.fillMaxWidth(),
-                        contentPadding = PaddingValues(vertical = 4.dp)
-                    ) {
-                        Text("+ Simulate Another Peer in Range", fontSize = 10.5.sp, color = Color(0xFF93C5FD))
                     }
                 }
 
