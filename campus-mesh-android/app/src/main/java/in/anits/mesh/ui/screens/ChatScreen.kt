@@ -290,8 +290,8 @@ fun WhatsAppInboxView(
                         Text(
                             text = "PINNED BROADCAST CHANNEL",
                             color = WhatsAppTextMuted,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
+                            fontSize = 8.5.sp,
+                            fontWeight = FontWeight.Medium,
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                         )
                         GeneralBroadcastRow(
@@ -307,8 +307,8 @@ fun WhatsAppInboxView(
                     Text(
                         text = "DISCOVERED DIRECT PEERS IN RANGE (${onlineDirectChats.size})",
                         color = WhatsAppTextMuted,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
+                        fontSize = 8.5.sp,
+                        fontWeight = FontWeight.Medium,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                     )
                 }
@@ -336,8 +336,8 @@ fun WhatsAppInboxView(
                         Text(
                             text = "MULTI-HOP PRIVATE CHATS (${multiHopChats.size})",
                             color = RelayCyan,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
+                            fontSize = 8.5.sp,
+                            fontWeight = FontWeight.Medium,
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                         )
                     }

@@ -68,10 +68,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     // Manually created custom private chats (e.g., student in MECH selected via Directory Picker)
     private val _customConversations = MutableStateFlow<Map<String, ChatConversation>>(emptyMap())
 
-    // Discovered physical peers currently active in BLE range (last 12 seconds only)
+    // Discovered physical peers currently active in BLE range (last 45 seconds sliding window)
     val activePeers: StateFlow<List<PeerEntity>> = peerDao.getAllPeersFlow()
         .map { peers ->
-            val activeThreshold = System.currentTimeMillis() - 12_000L
+            val activeThreshold = System.currentTimeMillis() - 45_000L
             peers.filter { it.lastSeenEpoch >= activeThreshold && it.rollNumber != "A23126551000" }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -105,13 +105,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             } catch (e: Exception) {
                 // Safe
             }
-            // Auto-pruner loop: keep discovered peers strictly live (<= 12 seconds)
+            // Auto-pruner loop: evict peers not seen in the last 45 seconds
             while (isActive) {
                 try {
-                    val threshold = System.currentTimeMillis() - 12_000L
+                    val threshold = System.currentTimeMillis() - 45_000L
                     peerDao.pruneStalePeers(threshold)
                 } catch (e: Exception) {}
-                delay(3_000L)
+                delay(10_000L)
             }
         }
     }
