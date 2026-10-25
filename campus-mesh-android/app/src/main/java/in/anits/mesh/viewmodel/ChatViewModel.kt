@@ -51,6 +51,7 @@ data class MeshChatMessage(
     val isOutgoing: Boolean,
     val timestamp: String,
     val deliveryStatus: String, // 'DELIVERED', 'RELAYING'
+    val isRead: Boolean = true,
     val hopCount: Int = 1,
     val relayedBy: String = ""
 )
@@ -73,7 +74,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     // Discovered physical peers currently active in BLE range (last 45 seconds sliding window)
     val activePeers: StateFlow<List<PeerEntity>> = peerDao.getAllPeersFlow()
         .map { peers ->
-            val activeThreshold = System.currentTimeMillis() - 45_000L
+            val activeThreshold = System.currentTimeMillis() - 75_000L
             peers.filter { it.lastSeenEpoch >= activeThreshold && it.rollNumber != "A23126551000" }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -110,16 +111,20 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             // Auto-pruner loop: evict peers not seen in the last 45 seconds
             while (isActive) {
                 try {
-                    val threshold = System.currentTimeMillis() - 45_000L
+                    val threshold = System.currentTimeMillis() - 75_000L
                     peerDao.pruneStalePeers(threshold)
                 } catch (e: Exception) {}
-                delay(10_000L)
+                delay(15_000L)
             }
         }
     }
 
     fun openConversation(conv: ChatConversation) {
         _activeConversation.value = conv
+        markConversationRead(conv.conversationId)
+        if (conv.rollNumber.isNotBlank() && conv.rollNumber != conv.conversationId) {
+            markConversationRead(conv.rollNumber)
+        }
     }
 
     fun closeConversation() {
@@ -371,6 +376,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 isOutgoing = isOutgoing,
                 timestamp = timeStr,
                 deliveryStatus = entity.deliveryStatus,
+                isRead = entity.isRead,
                 hopCount = if (hopCount == 0 && !isOutgoing) 1 else hopCount,
                 relayedBy = relayedBy
             )
@@ -391,6 +397,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         // 1. PINNED: Campus General Broadcast (All Nodes)
         val broadcastMsgs = msgList.filter { it.conversationId == "BROADCAST" }
         val lastBroadcast = broadcastMsgs.lastOrNull()
+        val unreadBc = broadcastMsgs.count { !it.isOutgoing && !it.isRead }
         list.add(
             ChatConversation(
                 conversationId = "BROADCAST",
@@ -402,7 +409,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 isOnlineInRange = true,
                 lastMessageText = lastBroadcast?.text ?: "Broadcast to all reachable student & faculty nodes...",
                 lastMessageTimestamp = lastBroadcast?.timestamp ?: "Live",
-                lastMessageDeliveryStatus = lastBroadcast?.deliveryStatus ?: "DELIVERED"
+                lastMessageDeliveryStatus = lastBroadcast?.deliveryStatus ?: "DELIVERED",
+            unreadCount = unreadBc,
+            lastMessageIsRead = lastBroadcast?.isRead ?: true
             )
         )
 
@@ -418,6 +427,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             val pMsgs = msgList.filter { it.conversationId == roll || it.conversationId == summary.rollNumber }
             val lastMsg = pMsgs.lastOrNull()
 
+            val unreadCount = pMsgs.count { !it.isOutgoing && !it.isRead }
+
             list.add(
                 ChatConversation(
                     conversationId = summary.rollNumber.ifBlank { roll },
@@ -430,7 +441,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     rssi = peer.rssi,
                     lastMessageText = lastMsg?.text ?: "In direct Bluetooth radio range (~3m)",
                     lastMessageTimestamp = lastMsg?.timestamp ?: "Now",
-                    lastMessageDeliveryStatus = lastMsg?.deliveryStatus ?: "DELIVERED"
+                    lastMessageDeliveryStatus = lastMsg?.deliveryStatus ?: "DELIVERED",
+                unreadCount = unreadCount,
+                lastMessageIsRead = lastMsg?.isRead ?: true
                 )
             )
         }
@@ -442,10 +455,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 val pMsgs = msgList.filter { it.conversationId == customConv.conversationId }
                 val lastMsg = pMsgs.lastOrNull()
 
+                val unreadCount = pMsgs.count { !it.isOutgoing && !it.isRead }
+
                 list.add(
                     customConv.copy(
                         lastMessageText = lastMsg?.text ?: customConv.lastMessageText,
-                        lastMessageTimestamp = lastMsg?.timestamp ?: customConv.lastMessageTimestamp
+                        lastMessageTimestamp = lastMsg?.timestamp ?: customConv.lastMessageTimestamp,
+                    unreadCount = unreadCount,
+                    lastMessageIsRead = lastMsg?.isRead ?: true
                     )
                 )
             }

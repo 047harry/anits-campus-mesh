@@ -116,7 +116,7 @@ class RadioCoordinator(
         bleAdvertiser.start()
         udpTransport.start()
         bleGattTransport.start()
-        rfcommTransport.start()
+        // rfcommTransport.start()
 
         Log.i(TAG, "✓ Hardware Mesh Services (BLE GATT + BLE Beacon + LAN UDP) started successfully")
     }

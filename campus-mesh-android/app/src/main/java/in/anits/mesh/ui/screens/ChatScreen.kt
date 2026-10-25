@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.viewmodel.compose.viewModel
 import android.net.Uri
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
@@ -67,6 +68,10 @@ fun ChatScreen(
     val messages by viewModel.messages.collectAsState()
 
     var showNewChatDialog by remember { mutableStateOf(false) }
+
+    BackHandler(enabled = activeConversation != null) {
+        viewModel.closeConversation()
+    }
 
     Box(
         modifier = Modifier
@@ -1000,9 +1005,16 @@ fun WhatsAppBubble(
                     )
                     if (isOut) {
                         Spacer(modifier = Modifier.width(4.dp))
+                        val isDelivered = (message.deliveryStatus == "DELIVERED")
+                        val tickText = if (isDelivered) "✓✓" else "✓"
+                        val tickColor = if (isDelivered) {
+                            if (message.isRead) Color(0xFF53BDEB) else Color.White
+                        } else {
+                            WhatsAppTextMuted
+                        }
                         Text(
-                            text = if (message.deliveryStatus == "DELIVERED") "✓✓" else "✓",
-                            color = if (message.deliveryStatus == "DELIVERED") WhatsAppTickCyan else WhatsAppTextMuted,
+                            text = tickText,
+                            color = tickColor,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold
                         )
@@ -1050,22 +1062,46 @@ fun GeneralBroadcastRow(
                     text = "Campus General Broadcast",
                     color = Color.White,
                     fontSize = 14.5.sp,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f)
                 )
                 Text(
                     text = conversation.lastMessageTimestamp,
-                    color = WhatsAppGreen,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.SemiBold
+                    color = if (conversation.unreadCount > 0) WhatsAppGreen else WhatsAppTextMuted,
+                    fontSize = 11.sp,
+                    fontWeight = if (conversation.unreadCount > 0) FontWeight.Bold else FontWeight.Normal
                 )
             }
             Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = conversation.lastMessageText,
-                color = WhatsAppTextMuted,
-                fontSize = 12.sp,
-                maxLines = 1
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = conversation.lastMessageText,
+                    color = WhatsAppTextMuted,
+                    fontSize = 12.sp,
+                    maxLines = 1,
+                    modifier = Modifier.weight(1f)
+                )
+                if (conversation.unreadCount > 0) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Box(
+                        modifier = Modifier
+                            .size(20.dp)
+                            .background(WhatsAppGreen, CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = if (conversation.unreadCount > 99) "99+" else conversation.unreadCount.toString(),
+                            color = Color(0xFF0B141A),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
         }
     }
 }
@@ -1106,7 +1142,7 @@ fun WhatsAppConversationRow(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = conversation.title,
                         color = Color.White,
@@ -1124,34 +1160,61 @@ fun WhatsAppConversationRow(
                 }
                 Text(
                     text = conversation.lastMessageTimestamp,
-                    color = WhatsAppTextMuted,
-                    fontSize = 10.sp
+                    color = if (conversation.unreadCount > 0) WhatsAppGreen else WhatsAppTextMuted,
+                    fontSize = 11.sp,
+                    fontWeight = if (conversation.unreadCount > 0) FontWeight.Bold else FontWeight.Normal
                 )
             }
 
             Spacer(modifier = Modifier.height(2.dp))
 
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (conversation.isOnlineInRange) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (conversation.isOnlineInRange) {
+                        Box(
+                            modifier = Modifier
+                                .size(6.dp)
+                                .background(WhatsAppGreen, CircleShape)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = if (conversation.lastMessageText.isNotBlank() && !conversation.lastMessageText.startsWith("In direct")) conversation.lastMessageText else "In range • ${conversation.rssi} dBm",
+                            color = if (conversation.lastMessageText.isNotBlank() && !conversation.lastMessageText.startsWith("In direct")) WhatsAppTextMuted else WhatsAppGreen,
+                            fontSize = 11.sp,
+                            maxLines = 1
+                        )
+                    } else {
+                        Text(
+                            text = if (conversation.lastMessageText.isNotBlank()) conversation.lastMessageText else "🔀 Multi-Hop • ${conversation.department}",
+                            color = if (conversation.lastMessageText.isNotBlank()) WhatsAppTextMuted else RelayCyan,
+                            fontSize = 11.sp,
+                            maxLines = 1
+                        )
+                    }
+                }
+
+                if (conversation.unreadCount > 0) {
+                    Spacer(modifier = Modifier.width(8.dp))
                     Box(
                         modifier = Modifier
-                            .size(6.dp)
-                            .background(WhatsAppGreen, CircleShape)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = "In range • ${conversation.rssi} dBm",
-                        color = WhatsAppGreen,
-                        fontSize = 10.5.sp,
-                        maxLines = 1
-                    )
-                } else {
-                    Text(
-                        text = "🔀 Multi-Hop • ${conversation.department}",
-                        color = RelayCyan,
-                        fontSize = 10.5.sp,
-                        maxLines = 1
-                    )
+                            .size(20.dp)
+                            .background(WhatsAppGreen, CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = if (conversation.unreadCount > 99) "99+" else conversation.unreadCount.toString(),
+                            color = Color(0xFF0B141A),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             }
         }
