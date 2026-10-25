@@ -7,6 +7,7 @@ import `in`.anits.mesh.CampusMeshApp
 import `in`.anits.mesh.data.UserManager
 import `in`.anits.mesh.data.entity.PeerEntity
 import `in`.anits.mesh.radio.MeshRadioService
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.isActive
@@ -43,6 +44,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private var lastLoggedPeerCount = 0
 
     init {
+        viewModelScope.launch(Dispatchers.IO) {
+            try { peerDao.purgeDefaultPlaceholder() } catch (e: Exception) {}
+        }
         MeshRadioService.startService(application)
         startHeartbeatTicker()
         observeRealPeers()

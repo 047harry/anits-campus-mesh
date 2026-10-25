@@ -92,6 +92,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 messageDao.purgeBotMessages()
+                peerDao.purgeDefaultPlaceholder()
             } catch (e: Exception) {
                 // Safe
             }
@@ -292,7 +293,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         // 2. DISCOVERED PEERS (Physical Direct Peers in BLE/Wi-Fi range)
         peers.forEach { peer ->
             val roll = peer.rollNumber?.ifBlank { null } ?: peer.nodeId
-            if (roll.equals(myRoll, ignoreCase = true)) return@forEach
+            if (roll.equals(myRoll, ignoreCase = true) || roll.equals("A23126551000", ignoreCase = true)) return@forEach
 
             handledConversations.add(roll)
             val summary = UserManager.resolvePeer(roll, peer.userRole)

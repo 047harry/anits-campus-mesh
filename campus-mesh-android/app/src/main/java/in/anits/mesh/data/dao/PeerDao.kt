@@ -23,4 +23,7 @@ interface PeerDao {
 
     @Query("DELETE FROM table_peers WHERE last_seen_epoch < :expiryThresholdMs")
     suspend fun pruneStalePeers(expiryThresholdMs: Long)
+
+    @Query("DELETE FROM table_peers WHERE roll_number = 'A23126551000' OR roll_number LIKE '%1000%' OR node_id = 'A23126551000'")
+    suspend fun purgeDefaultPlaceholder()
 }
