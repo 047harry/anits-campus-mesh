@@ -22,7 +22,7 @@ import java.nio.charset.StandardCharsets
 
 /**
  * Unified Hardware Transport Coordinator.
- * Controls real physical BLE scanning, advertising, and LAN UDP transport between devices.
+ * Controls real physical BLE scanning, advertising, BLE GATT messaging, and LAN UDP transport between devices.
  */
 class RadioCoordinator(
     private val context: Context,
@@ -71,6 +71,13 @@ class RadioCoordinator(
         coroutineScope = coroutineScope
     )
 
+    private val bleGattTransport: BleGattMeshTransport = BleGattMeshTransport(
+        context = context,
+        bluetoothAdapter = bluetoothAdapter,
+        database = database,
+        coroutineScope = coroutineScope
+    )
+
     private val _isMeshActive = MutableStateFlow(false)
     val isMeshActive: StateFlow<Boolean> = _isMeshActive.asStateFlow()
 
@@ -85,7 +92,7 @@ class RadioCoordinator(
 
         bleScanner.setLocalRollNumber(localRollNumber)
         bleAdvertiser.updateIdentity(localRole, localRollNumber)
-        Log.i(TAG, "Coordinator updated profile: Roll=$localRollNumber, Role=${localRole.title}")
+        Log.i(TAG, "Coordinator updated profile: Roll=" + localRollNumber + ", Role=" + localRole.title)
     }
 
     fun startMeshServices() {
@@ -97,8 +104,9 @@ class RadioCoordinator(
         bleScanner.start()
         bleAdvertiser.start()
         udpTransport.start()
+        bleGattTransport.start()
 
-        Log.i(TAG, "Hardware Mesh Services (BLE + UDP) started successfully")
+        Log.i(TAG, "✓ Hardware Mesh Services (BLE GATT + BLE Beacon + LAN UDP) started successfully")
     }
 
     fun stopMeshServices() {
@@ -108,15 +116,29 @@ class RadioCoordinator(
         bleScanner.stop()
         bleAdvertiser.stop()
         udpTransport.stop()
+        bleGattTransport.stop()
         Log.i(TAG, "Hardware Mesh Services stopped")
     }
 
     /**
-     * Transmits a genuine chat message across the mesh radio and local subnet.
+     * Transmits a genuine chat message across the dual-layer mesh (UDP broadcast + BLE GATT direct).
      */
     fun transmitChatMessage(entity: MessageEntity, jsonPayload: String) {
         coroutineScope.launch(Dispatchers.IO) {
+            // Layer 1: Instant local Wi-Fi / Hotspot LAN UDP Broadcast (< 5ms)
             udpTransport.broadcastJson(jsonPayload)
+
+            // Layer 2: Direct offline Bluetooth LE GATT delivery to active peers in range
+            try {
+                val peers = database.peerDao().getActivePeers(0L)
+                for (peer in peers) {
+                    if (peer.macAddress.isNotBlank() && peer.macAddress != "00:00:00:00:00:00") {
+                        bleGattTransport.sendDirectGattMessage(peer.macAddress, jsonPayload)
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "BLE GATT dispatch note: " + e.message)
+            }
         }
     }
 

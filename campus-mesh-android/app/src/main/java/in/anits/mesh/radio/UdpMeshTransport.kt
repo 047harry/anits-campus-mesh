@@ -39,18 +39,25 @@ class UdpMeshTransport(
         isListening = true
 
         coroutineScope.launch(Dispatchers.IO) {
+            // 1. Try acquiring multicast lock (non-fatal if rejected)
             try {
                 val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
                 multicastLock = wifiManager?.createMulticastLock("CampusMeshMulticastLock")?.apply {
                     setReferenceCounted(true)
                     acquire()
                 }
+                Log.i(TAG, "✓ MulticastLock acquired successfully")
+            } catch (e: Exception) {
+                Log.w(TAG, "MulticastLock note: " + e.message)
+            }
 
+            // 2. Open UDP receiver socket
+            try {
                 socket = DatagramSocket(MESH_UDP_PORT).apply {
                     broadcast = true
                     reuseAddress = true
                 }
-                Log.i(TAG, "✓ UDP Mesh Transport listening on port $MESH_UDP_PORT")
+                Log.i(TAG, "✓ UDP Mesh Transport listening on port " + MESH_UDP_PORT)
 
                 val buffer = ByteArray(4096)
                 while (isActive && isListening) {
@@ -65,7 +72,7 @@ class UdpMeshTransport(
                     }
                 }
             } catch (e: Exception) {
-                Log.w(TAG, "UDP Socket error: ${e.message}")
+                Log.e(TAG, "UDP Socket listen error: " + e.message)
             }
         }
     }
@@ -119,9 +126,9 @@ class UdpMeshTransport(
                     }
                 }
                 sendSocket.close()
-                Log.i(TAG, "Sent UDP mesh packet (${bytes.size} bytes) to " + targets.size + " endpoints")
+                Log.i(TAG, "Sent UDP mesh packet (" + bytes.size + " bytes) to " + targets.size + " endpoints")
             } catch (e: Exception) {
-                Log.e(TAG, "Error broadcasting UDP mesh packet: ${e.message}")
+                Log.e(TAG, "Error broadcasting UDP mesh packet: " + e.message)
             }
         }
     }
@@ -134,10 +141,11 @@ class UdpMeshTransport(
 
             val myProfile = UserManager.getProfile(context)
             val myRoll = myProfile?.rollNumber ?: ""
+            val myNodeId = myProfile?.nodeId ?: ""
             val senderRoll = json.optString("senderRoll", "")
 
             // Loopback prevention: Ignore messages sent by this local device
-            if (senderRoll.isNotBlank() && senderRoll.equals(myRoll, ignoreCase = true)) {
+            if (senderRoll.isNotBlank() && (senderRoll.equals(myRoll, ignoreCase = true) || senderRoll.equals(myNodeId, ignoreCase = true))) {
                 return@withContext
             }
 
@@ -151,8 +159,16 @@ class UdpMeshTransport(
 
             val destRoll = json.optString("destRoll", "ALL PEERS")
             // Accept if broadcast or targeted to me
-            val isForMe = destRoll == "ALL PEERS" || destRoll == "BROADCAST" || destRoll.equals(myRoll, ignoreCase = true)
-            if (!isForMe) return@withContext
+            val isForMe = destRoll == "ALL PEERS" || destRoll == "BROADCAST"
+                    || destRoll.equals(myRoll, ignoreCase = true)
+                    || destRoll.equals(myNodeId, ignoreCase = true)
+                    || (myRoll.isNotBlank() && destRoll.contains(myRoll, ignoreCase = true))
+                    || (myNodeId.isNotBlank() && destRoll.contains(myNodeId, ignoreCase = true))
+
+            if (!isForMe) {
+                Log.d(TAG, "Packet not for me (dest=" + destRoll + ", myRoll=" + myRoll + ")")
+                return@withContext
+            }
 
             val packetType = json.optInt("packetType", PacketType.ROUTINE_CHAT.code.toInt()).toByte()
             val text = json.optString("text", "")
@@ -175,7 +191,7 @@ class UdpMeshTransport(
             database.messageDao().insertMessage(entity)
             Log.i(TAG, "✓ Received genuine mesh message from " + senderName + " (" + senderRoll + "): " + text)
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to parse incoming UDP packet: ${e.message}")
+            Log.e(TAG, "Failed to parse incoming UDP packet: " + e.message)
         }
     }
 }

@@ -15,6 +15,7 @@ import java.nio.charset.StandardCharsets
 /**
  * Real Hardware BLE Background Advertiser Daemon.
  * Broadcasts node presence, role badges, crisis alerts, and ROLL NUMBER in 20-byte manufacturer data.
+ * Set connectable=true so peer devices can connect via BLE GATT to deliver offline messages.
  */
 class BleAdvertiserDaemon(
     private val context: Context,
@@ -35,7 +36,7 @@ class BleAdvertiserDaemon(
     private val advertiseCallback = object : AdvertiseCallback() {
         override fun onStartSuccess(settingsInEffect: AdvertiseSettings?) {
             isAdvertising = true
-            Log.i(TAG, "✓ BLE Advertising ACTIVE: Roll=$localRollNumber, Role=${localRole.title}")
+            Log.i(TAG, "✓ BLE Advertising ACTIVE: Roll=$localRollNumber, Role=${localRole.title}, Connectable=true")
         }
 
         override fun onStartFailure(errorCode: Int) {
@@ -104,7 +105,7 @@ class BleAdvertiserDaemon(
             val settings = AdvertiseSettings.Builder()
                 .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
                 .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH)
-                .setConnectable(false)
+                .setConnectable(true) // MUST BE CONNECTABLE FOR BLE GATT MESSAGE DELIVERY!
                 .setTimeout(0)
                 .build()
 
@@ -135,10 +136,20 @@ class BleAdvertiserDaemon(
                 .setIncludeTxPowerLevel(false)
                 .build()
 
+            val scanResponse = AdvertiseData.Builder()
+                .addServiceUuid(BleScannerDaemon.MESH_PARCEL_UUID)
+                .setIncludeDeviceName(true)
+                .build()
+
             try {
-                advertiser?.startAdvertising(settings, data, advertiseCallback)
+                advertiser?.startAdvertising(settings, data, scanResponse, advertiseCallback)
             } catch (e: Exception) {
-                Log.e(TAG, "Exception in startAdvertising: ${e.message}", e)
+                try {
+                    // Fallback without scan response if hardware limit
+                    advertiser?.startAdvertising(settings, data, advertiseCallback)
+                } catch (e2: Exception) {
+                    Log.e(TAG, "Exception in startAdvertising: ${e2.message}", e2)
+                }
             }
         }
     }
