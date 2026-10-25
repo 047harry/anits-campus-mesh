@@ -71,8 +71,19 @@ object UserManager {
     fun isRegistered(context: Context): Boolean {
         val prefs = getPrefs(context)
         val registered = prefs.getBoolean(KEY_IS_REGISTERED, false)
-        if (registered && _currentUser.value == null) {
-            _currentUser.value = loadProfile(context)
+        if (registered) {
+            if (_currentUser.value == null) {
+                _currentUser.value = loadProfile(context)
+            }
+            // Auto-sync profile and directory in background on start
+            CoroutineScope(Dispatchers.IO).launch {
+                val prof = _currentUser.value ?: loadProfile(context)
+                val passHash = prefs.getString(KEY_PASS_HASH, "") ?: ""
+                if (prof != null) {
+                    syncUserToCloud(prof, passHash)
+                }
+                syncCampusDirectory()
+            }
         }
         return registered
     }
@@ -329,6 +340,7 @@ object UserManager {
 
     private fun syncUserToCloud(profile: UserProfile, passHash: String) {
         try {
+            android.util.Log.d("UserManager", "Attempting cloud sync for ${profile.rollNumber}...")
             val url = URL("$SUPABASE_URL/rest/v1/campus_users?on_conflict=roll_number")
             val conn = url.openConnection() as HttpURLConnection
             conn.requestMethod = "POST"
@@ -336,6 +348,8 @@ object UserManager {
             conn.setRequestProperty("Authorization", "Bearer $SUPABASE_ANON_KEY")
             conn.setRequestProperty("Content-Type", "application/json")
             conn.setRequestProperty("Prefer", "resolution=merge-duplicates")
+            conn.connectTimeout = 10000
+            conn.readTimeout = 10000
             conn.doOutput = true
 
             val body = JSONObject().apply {
@@ -353,10 +367,17 @@ object UserManager {
                 os.write(body.toString().toByteArray(Charsets.UTF_8))
             }
 
-            conn.responseCode
+            val code = conn.responseCode
+            android.util.Log.d("UserManager", "Cloud sync response code: $code")
+            if (code in 200..299) {
+                android.util.Log.i("UserManager", "Successfully synced ${profile.rollNumber} to Supabase!")
+            } else {
+                val err = conn.errorStream?.bufferedReader()?.readText()
+                android.util.Log.e("UserManager", "Supabase error HTTP $code: $err")
+            }
             conn.disconnect()
         } catch (e: Exception) {
-            // Safe in offline scenarios
+            android.util.Log.e("UserManager", "Exception during cloud sync: ${e.message}", e)
         }
     }
 }
