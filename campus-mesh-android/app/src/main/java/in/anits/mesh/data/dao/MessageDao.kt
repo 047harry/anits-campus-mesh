@@ -12,6 +12,9 @@ interface MessageDao {
     @Query("SELECT * FROM table_messages ORDER BY packet_type ASC, created_epoch DESC")
     fun getAllMessagesFlow(): Flow<List<MessageEntity>>
 
+    @Query("SELECT * FROM table_messages WHERE packet_type = 3 ORDER BY created_epoch ASC")
+    fun getChatMessagesFlow(): Flow<List<MessageEntity>>
+
     @Query("SELECT * FROM table_messages WHERE packet_type = 1 ORDER BY created_epoch DESC")
     fun getSosMessagesFlow(): Flow<List<MessageEntity>>
 
