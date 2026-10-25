@@ -297,19 +297,20 @@ object UserManager {
     }
 
     fun resolvePeer(nodeIdOrRoll: String, fallbackRoleByte: Byte): CampusUserSummary {
-        val cached = _campusDirectory.value[nodeIdOrRoll]
+        val cached = _campusDirectory.value[nodeIdOrRoll] ?: _campusDirectory.value[nodeIdOrRoll.removePrefix("node_")]
         if (cached != null) return cached
 
         val fallbackRole = UserRole.fromByte(fallbackRoleByte)
+        val cleanRoll = if (nodeIdOrRoll.startsWith("node_")) nodeIdOrRoll.removePrefix("node_").take(10) else nodeIdOrRoll
         return CampusUserSummary(
-            rollNumber = nodeIdOrRoll.take(12),
+            rollNumber = cleanRoll,
             fullName = when (fallbackRole) {
                 UserRole.SYSTEM_ADMIN -> "Campus Root Administrator"
                 UserRole.PRINCIPAL_DEAN -> "Principal / Dean's Office"
                 UserRole.HOD -> "Head of Department"
                 UserRole.FACULTY_WARDEN -> "Faculty / Hostel Warden"
                 UserRole.CLINIC_SECURITY -> "Clinic Triage / Security"
-                UserRole.STUDENT_OCCUPANT -> "Student Peer (${nodeIdOrRoll.take(6)})"
+                UserRole.STUDENT_OCCUPANT -> "Roll No: $cleanRoll"
             },
             department = "ANITS",
             role = fallbackRole,

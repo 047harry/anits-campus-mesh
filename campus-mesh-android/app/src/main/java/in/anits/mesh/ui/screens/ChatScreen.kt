@@ -335,8 +335,13 @@ fun WhatsAppChatRow(
                 .border(1.5.dp, if (conversation.isOnlineInRange) roleColor else WhatsAppBorder, shape = CircleShape),
             contentAlignment = Alignment.Center
         ) {
+            val initials = if (conversation.title.startsWith("Roll No:")) {
+                conversation.rollNumber.takeLast(2).uppercase()
+            } else {
+                conversation.title.split(" ").mapNotNull { it.firstOrNull() }.take(2).joinToString("")
+            }
             Text(
-                text = conversation.title.split(" ").mapNotNull { it.firstOrNull() }.take(2).joinToString(""),
+                text = initials,
                 color = roleColor,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Black
@@ -361,20 +366,20 @@ fun WhatsAppChatRow(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Name + Roll Number in WhatsApp header format!
+                // Name + Roll Number in WhatsApp format!
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    val displayName = if (conversation.title.startsWith("Roll No:")) {
+                        conversation.title
+                    } else if (conversation.rollNumber.isNotBlank() && conversation.title != conversation.rollNumber) {
+                        "${conversation.title} (${conversation.rollNumber})"
+                    } else {
+                        "Roll No: ${conversation.rollNumber}"
+                    }
                     Text(
-                        text = conversation.title,
+                        text = displayName,
                         color = Color.White,
                         fontSize = 13.5.sp,
                         fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "(${conversation.rollNumber})",
-                        color = WhatsAppTextMuted,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium
                     )
                 }
 
@@ -479,8 +484,13 @@ fun WhatsAppChatRoomView(
                 if (conversation.isBroadcast) {
                     Icon(Icons.Default.Campaign, contentDescription = null, tint = WhatsAppGreen, modifier = Modifier.size(20.dp))
                 } else {
+                    val initials = if (conversation.title.startsWith("Roll No:")) {
+                        conversation.rollNumber.takeLast(2).uppercase()
+                    } else {
+                        conversation.title.split(" ").mapNotNull { it.firstOrNull() }.take(2).joinToString("")
+                    }
                     Text(
-                        text = conversation.title.split(" ").mapNotNull { it.firstOrNull() }.take(2).joinToString(""),
+                        text = initials,
                         color = roleColor,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Black
@@ -492,17 +502,18 @@ fun WhatsAppChatRoomView(
 
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    val displayName = if (conversation.title.startsWith("Roll No:")) {
+                        conversation.title
+                    } else if (conversation.rollNumber.isNotBlank() && conversation.title != conversation.rollNumber) {
+                        "${conversation.title} (${conversation.rollNumber})"
+                    } else {
+                        "Roll No: ${conversation.rollNumber}"
+                    }
                     Text(
-                        text = conversation.title,
+                        text = displayName,
                         color = Color.White,
                         fontSize = 13.5.sp,
                         fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = "(${conversation.rollNumber})",
-                        color = WhatsAppTextMuted,
-                        fontSize = 10.5.sp
                     )
                 }
                 Text(
@@ -544,7 +555,7 @@ fun WhatsAppChatRoomView(
                 onValueChange = { textInput = it },
                 placeholder = {
                     Text(
-                        text = if (conversation.isBroadcast) "Broadcast to all mesh nodes..." else "Message ${conversation.rollNumber}...",
+                        text = if (conversation.isBroadcast) "Broadcast to all mesh nodes..." else "Message Roll No: ${conversation.rollNumber}...",
                         color = WhatsAppTextMuted,
                         fontSize = 12.5.sp
                     )

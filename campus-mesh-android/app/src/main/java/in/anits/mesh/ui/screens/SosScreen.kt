@@ -356,8 +356,13 @@ fun PeerRow(peer: PeerEntity) {
                     .border(1.dp, roleColor, shape = CircleShape),
                 contentAlignment = Alignment.Center
             ) {
+                val initials = if (summary.fullName.startsWith("Roll No:")) {
+                    (peer.rollNumber ?: peer.nodeId).takeLast(2).uppercase()
+                } else {
+                    summary.fullName.split(" ").mapNotNull { it.firstOrNull() }.take(2).joinToString("")
+                }
                 Text(
-                    text = summary.fullName.split(" ").mapNotNull { it.firstOrNull() }.take(2).joinToString(""),
+                    text = initials,
                     color = roleColor,
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Black
