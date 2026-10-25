@@ -31,7 +31,7 @@ class RadioCoordinator(
     }
 
     private val localNodeId: ByteArray = generateOrLoadNodeId()
-    private val localRole: UserRole = UserRole.STUDENT_OCCUPANT
+    private val localRole: UserRole = `in`.anits.mesh.data.UserManager.getProfile(context)?.role ?: UserRole.STUDENT_OCCUPANT
 
     private val bleScanner: BleScannerDaemon = BleScannerDaemon(
         context = context,

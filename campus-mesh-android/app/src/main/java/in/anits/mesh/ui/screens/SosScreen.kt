@@ -334,6 +334,14 @@ fun RadioBadge(title: String, status: String, color: Color, modifier: Modifier =
 
 @Composable
 fun PeerRow(peer: PeerEntity) {
+    val summary = `in`.anits.mesh.data.UserManager.resolvePeer(peer.rollNumber ?: peer.nodeId, peer.userRole)
+    val roleColor = when (summary.role) {
+        `in`.anits.mesh.model.UserRole.HOD, `in`.anits.mesh.model.UserRole.PRINCIPAL_DEAN -> Color(0xFFF59E0B)
+        `in`.anits.mesh.model.UserRole.CLINIC_SECURITY -> Color(0xFFEF4444)
+        `in`.anits.mesh.model.UserRole.FACULTY_WARDEN -> Color(0xFF38BDF8)
+        else -> Color(0xFF10B981)
+    }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -342,18 +350,45 @@ fun PeerRow(peer: PeerEntity) {
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Column {
-            Text(
-                text = "${peer.rollNumber ?: peer.nodeId} (Student Node)",
-                color = Color.White,
-                fontSize = 11.5.sp,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = "MAC: ${peer.macAddress} • ${peer.radioType}",
-                color = Color(0xFF94A3B8),
-                fontSize = 9.5.sp
-            )
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+            Box(
+                modifier = Modifier
+                    .size(28.dp)
+                    .background(roleColor.copy(alpha = 0.2f), shape = CircleShape)
+                    .border(1.dp, roleColor, shape = CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = summary.fullName.split(" ").mapNotNull { it.firstOrNull() }.take(2).joinToString(""),
+                    color = roleColor,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Black
+                )
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Column {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .background(roleColor.copy(alpha = 0.2f), shape = RoundedCornerShape(4.dp))
+                            .padding(horizontal = 4.dp, vertical = 1.dp)
+                    ) {
+                        Text(summary.role.title, color = roleColor, fontSize = 8.sp, fontWeight = FontWeight.Black)
+                    }
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = summary.fullName,
+                        color = Color.White,
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                Text(
+                    text = "ID: ${peer.rollNumber ?: peer.nodeId.take(10)} • Dept: ${summary.department} • ${peer.radioType}",
+                    color = Color(0xFF94A3B8),
+                    fontSize = 9.sp
+                )
+            }
         }
         Box(
             modifier = Modifier
@@ -361,7 +396,7 @@ fun PeerRow(peer: PeerEntity) {
                 .padding(horizontal = 6.dp, vertical = 3.dp)
         ) {
             Text(
-                text = "${peer.rssi} dBm (~5m)",
+                text = "${peer.rssi} dBm (~3m)",
                 color = Color(0xFF6EE7B7),
                 fontSize = 9.5.sp,
                 fontWeight = FontWeight.Bold

@@ -12,6 +12,9 @@ interface PeerDao {
     @Query("SELECT * FROM table_peers WHERE last_seen_epoch >= :activeThresholdMs ORDER BY rssi DESC")
     fun getActivePeersFlow(activeThresholdMs: Long): Flow<List<PeerEntity>>
 
+    @Query("SELECT * FROM table_peers ORDER BY last_seen_epoch DESC")
+    fun getAllPeersFlow(): Flow<List<PeerEntity>>
+
     @Query("SELECT COUNT(*) FROM table_peers WHERE last_seen_epoch >= :activeThresholdMs")
     fun getActivePeerCountFlow(activeThresholdMs: Long): Flow<Int>
 

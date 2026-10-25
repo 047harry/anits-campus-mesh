@@ -236,7 +236,7 @@
             <div class="qr-wrapper" id="qrcode"></div>
             <p class="qr-caption">📱 Point camera to download on any Android phone</p>
 
-            <a href="CampusMesh-v1.0.apk" class="download-btn" download>
+            <a href="https://github.com/047harry/anits-campus-mesh/releases/download/v1.0.0/CampusMesh-v1.0.apk" class="download-btn" download>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                     <polyline points="7 10 12 15 17 10"></polyline>
@@ -317,7 +317,7 @@
 
     <script>
         // Generate QR Code dynamically pointing to the exact current URL/APK
-        const apkUrl = window.location.origin + window.location.pathname.replace(/[^/]*$/, '') + 'CampusMesh-v1.0.apk';
+        const apkUrl = 'https://github.com/047harry/anits-campus-mesh/releases/download/v1.0.0/CampusMesh-v1.0.apk';
         new QRCode(document.getElementById("qrcode"), {
             text: apkUrl,
             width: 160,
