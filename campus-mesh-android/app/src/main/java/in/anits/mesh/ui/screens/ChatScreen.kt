@@ -1,6 +1,7 @@
 package `in`.anits.mesh.ui.screens
 
 import androidx.compose.animation.*
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -51,7 +52,11 @@ fun ChatScreen(
             .fillMaxSize()
             .background(WhatsAppBg)
     ) {
-        if (activeConversation == null) {
+        BackHandler(enabled = (activeConversation != null)) {
+        viewModel.closeConversation()
+    }
+
+    if (activeConversation == null) {
             // Screen 1: WhatsApp Inbox (List of chats + General Broadcast)
             WhatsAppInboxView(
                 conversations = conversations,
