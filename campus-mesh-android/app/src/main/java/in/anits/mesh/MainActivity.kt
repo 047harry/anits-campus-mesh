@@ -1,6 +1,12 @@
 package `in`.anits.mesh
 
 import android.Manifest
+import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothManager
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -49,14 +55,40 @@ class MainActivity : ComponentActivity() {
     private val bulletinViewModel: BulletinViewModel by viewModels()
     private val chatViewModel: ChatViewModel by viewModels()
 
+    private val bluetoothEnableLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == RESULT_OK) {
+            RadioCoordinator.instance?.startMeshServices()
+        }
+    }
+
+    private val bluetoothStateReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == BluetoothAdapter.ACTION_STATE_CHANGED) {
+                val state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR)
+                when (state) {
+                    BluetoothAdapter.STATE_ON -> {
+                        RadioCoordinator.instance?.startMeshServices()
+                    }
+                    BluetoothAdapter.STATE_TURNING_OFF, BluetoothAdapter.STATE_OFF -> {
+                        RadioCoordinator.instance?.stopMeshServices()
+                    }
+                }
+            }
+        }
+    }
+
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { _ ->
+        checkAndPromptBluetooth()
         MeshRadioService.startService(this)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        registerReceiver(bluetoothStateReceiver, IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED))
         checkAndRequestPermissions()
 
         setContent {
@@ -115,8 +147,30 @@ class MainActivity : ComponentActivity() {
         if (needed.isNotEmpty()) {
             requestPermissionLauncher.launch(needed.toTypedArray())
         } else {
+            checkAndPromptBluetooth()
             MeshRadioService.startService(this)
         }
+    }
+
+    private fun checkAndPromptBluetooth() {
+        val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
+        val adapter = bluetoothManager?.adapter
+        if (adapter != null && !adapter.isEnabled) {
+            val enableBtIntent = Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)
+            bluetoothEnableLauncher.launch(enableBtIntent)
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        checkAndPromptBluetooth()
+    }
+
+    override fun onDestroy() {
+        try {
+            unregisterReceiver(bluetoothStateReceiver)
+        } catch (e: Exception) {}
+        super.onDestroy()
     }
 }
 

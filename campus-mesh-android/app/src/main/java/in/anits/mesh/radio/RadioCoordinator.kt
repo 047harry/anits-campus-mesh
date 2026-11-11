@@ -108,7 +108,12 @@ class RadioCoordinator(
 
     fun startMeshServices() {
         instance = this
-        if (_isMeshActive.value) return
+        if (_isMeshActive.value) {
+            // Re-trigger scanning and advertising in case Bluetooth was toggled on/off
+            bleScanner.start()
+            bleAdvertiser.start()
+            return
+        }
         _isMeshActive.value = true
 
         updateProfile()
