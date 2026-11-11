@@ -224,21 +224,34 @@ fun WhatsAppInboxView(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // Clean WhatsApp Top App Bar (Clutter-free, modern)
+            // Minecraft Banana Pixel Top Header
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(WhatsAppHeader)
-                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                    .background(Color(0xFF141210))
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text(
-                    text = "ANITS Mesh Chat",
-                    color = Color.White,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("🍌", fontSize = 22.sp)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Column {
+                        Text(
+                            text = "MESH CHAT",
+                            color = Color(0xFFFFE600),
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Black,
+                            letterSpacing = 1.sp
+                        )
+                        Text(
+                            text = "RADIO ONLINE",
+                            color = Color(0xFF17DD62),
+                            fontSize = 8.5.sp,
+                            fontWeight = FontWeight.Black
+                        )
+                    }
+                }
 
                 if (onSwitchUser != null) {
                     val userProfile = UserManager.getProfile(LocalContext.current)

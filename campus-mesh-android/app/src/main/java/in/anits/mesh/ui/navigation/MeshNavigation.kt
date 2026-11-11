@@ -1,7 +1,10 @@
 package `in`.anits.mesh.ui.navigation
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -15,11 +18,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import `in`.anits.mesh.ui.theme.*
 
-sealed class Screen(val route: String, val title: String, val icon: ImageVector, val accentColor: Color) {
-    object Sos : Screen("sos", "SOS", Icons.Default.Warning, EmergencyRed)
-    object Bulletins : Screen("bulletins", "Bulletins", Icons.Default.Campaign, AuthorityGold)
-    object Chat : Screen("chat", "Mesh Chat", Icons.Default.Chat, DirectBlue)
-    object Map : Screen("map", "Map", Icons.Default.LocationOn, MeshGreen)
+sealed class Screen(val route: String, val title: String, val icon: String, val accentColor: Color) {
+    object Sos : Screen("sos", "SOS", "🚨", MineRedstone)
+    object Bulletins : Screen("bulletins", "Radio", "📡", MineGold)
+    object Chat : Screen("chat", "Chat", "💬", MineEmerald)
+    object Map : Screen("map", "Map", "🗺️", MineDiamondBlue)
 }
 
 val NavScreens = listOf(Screen.Sos, Screen.Bulletins, Screen.Chat, Screen.Map)
@@ -30,34 +33,49 @@ fun MeshBottomNavigation(
     onNavigate: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    NavigationBar(
-        containerColor = Color.Black,
-        modifier = modifier.height(72.dp)
+    // Minecraft Hotbar Style Navigation
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(MineDirtDark)
+            .border(width = 2.dp, color = MineStoneBorder)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
     ) {
         NavScreens.forEach { screen ->
             val isSelected = (currentRoute == screen.route)
-            NavigationBarItem(
-                selected = isSelected,
-                onClick = { onNavigate(screen.route) },
-                icon = {
-                    Icon(
-                        imageVector = screen.icon,
-                        contentDescription = screen.title,
-                        tint = if (isSelected) screen.accentColor else TextMuted
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 4.dp)
+                    .background(
+                        if (isSelected) MineStoneDark else Color.Transparent,
+                        RoundedCornerShape(6.dp)
                     )
-                },
-                label = {
+                    .border(
+                        width = if (isSelected) 2.dp else 1.dp,
+                        color = if (isSelected) screen.accentColor else MineStoneBorder.copy(alpha = 0.5f),
+                        shape = RoundedCornerShape(6.dp)
+                    )
+                    .clickable { onNavigate(screen.route) }
+                    .padding(vertical = 6.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = screen.icon,
+                        fontSize = 17.sp
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = screen.title,
                         color = if (isSelected) screen.accentColor else TextMuted,
-                        fontSize = 11.sp,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                        fontSize = 10.sp,
+                        fontWeight = if (isSelected) FontWeight.Black else FontWeight.Medium
                     )
-                },
-                colors = NavigationBarItemDefaults.colors(
-                    indicatorColor = Color.Transparent
-                )
-            )
+                }
+            }
         }
     }
 }

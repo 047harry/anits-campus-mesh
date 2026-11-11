@@ -1,8 +1,8 @@
 package `in`.anits.mesh.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -21,26 +21,30 @@ fun MeshStatusBar(
     isBlackoutActive: Boolean,
     modifier: Modifier = Modifier
 ) {
+    // Gamified Minecraft HUD Status Strip
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
         modifier = modifier
             .fillMaxWidth()
-            .background(color = Color.Black)
-            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .background(MineDirtDark)
+            .border(width = 1.5.dp, color = MineStoneBorder)
+            .padding(horizontal = 14.dp, vertical = 8.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("🍌", fontSize = 16.sp)
+            Spacer(modifier = Modifier.width(6.dp))
             Box(
                 modifier = Modifier
                     .size(8.dp)
-                    .background(color = if (peerCount > 0) MeshGreen else EmergencyRed, shape = CircleShape)
+                    .background(color = if (peerCount > 0) MineEmerald else MineRedstone, shape = RoundedCornerShape(2.dp))
             )
             Spacer(modifier = Modifier.width(6.dp))
             Text(
-                text = if (peerCount > 0) "$peerCount Nearby Peers Active" else "Scanning for Peers...",
-                color = TextPrimary,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold
+                text = if (peerCount > 0) "$peerCount Nodes in Chunk" else "Searching Chunks...",
+                color = if (peerCount > 0) MineEmerald else TextMuted,
+                fontSize = 11.5.sp,
+                fontWeight = FontWeight.Black
             )
         }
 
@@ -48,12 +52,13 @@ fun MeshStatusBar(
             if (isBlackoutActive) {
                 Box(
                     modifier = Modifier
-                        .background(color = EmergencyRedDark, shape = RoundedCornerShape(4.dp))
-                        .padding(horizontal = 5.dp, vertical = 2.dp)
+                        .background(color = MineRedstone.copy(alpha = 0.25f), shape = RoundedCornerShape(4.dp))
+                        .border(1.dp, MineRedstone, shape = RoundedCornerShape(4.dp))
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
                 ) {
                     Text(
-                        text = "BLACKOUT",
-                        color = Color.White,
+                        text = "⚔️ BLACKOUT",
+                        color = MineRedstone,
                         fontSize = 9.sp,
                         fontWeight = FontWeight.Black
                     )
@@ -61,12 +66,19 @@ fun MeshStatusBar(
                 Spacer(modifier = Modifier.width(8.dp))
             }
 
-            Text(
-                text = "Batt: $batteryPercent%",
-                color = if (batteryPercent > 20) TextMuted else EmergencyRed,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold
-            )
+            Box(
+                modifier = Modifier
+                    .background(MineStoneDark, RoundedCornerShape(4.dp))
+                    .border(1.dp, MineStoneBorder, RoundedCornerShape(4.dp))
+                    .padding(horizontal = 6.dp, vertical = 2.dp)
+            ) {
+                Text(
+                    text = "🔋 $batteryPercent%",
+                    color = if (batteryPercent > 20) MineBananaYellow else MineRedstone,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Black
+                )
+            }
         }
     }
 }
