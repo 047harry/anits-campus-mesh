@@ -415,6 +415,60 @@ fun RegistrationScreen(
 
                     Spacer(modifier = Modifier.height(10.dp))
 
+                    // ROLE / CATEGORY SELECTOR (HOD, Warden, Principal, Student, etc.)
+                    Text("ROLE / CAMPUS DESIGNATION", color = MineDiamondBlue, fontSize = 10.sp, fontWeight = FontWeight.Black)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        listOf(
+                            UserRole.STUDENT_OCCUPANT to "🎓 Student / Occupant",
+                            UserRole.HOD to "⭐ Head of Department (HOD)",
+                            UserRole.FACULTY_WARDEN to "🛡️ Faculty / Hostel Warden",
+                            UserRole.CLINIC_SECURITY to "🚨 Health Clinic / Security",
+                            UserRole.PRINCIPAL_DEAN to "🏛️ Principal / Dean"
+                        ).forEach { (role, label) ->
+                            val isSel = (selectedRole == role)
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(
+                                        if (isSel) (if (role == UserRole.HOD || role == UserRole.PRINCIPAL_DEAN) MineGold.copy(alpha = 0.2f) else MineEmerald.copy(alpha = 0.2f))
+                                        else MineStoneDark,
+                                        shape = RoundedCornerShape(6.dp)
+                                    )
+                                    .border(
+                                        1.5.dp,
+                                        if (isSel) (if (role == UserRole.HOD || role == UserRole.PRINCIPAL_DEAN) MineBananaYellow else MineEmerald)
+                                        else MineStoneBorder,
+                                        shape = RoundedCornerShape(6.dp)
+                                    )
+                                    .clickable { selectedRole = role }
+                                    .padding(horizontal = 12.dp, vertical = 9.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = label,
+                                    color = if (isSel) Color.White else TextMuted,
+                                    fontSize = 11.5.sp,
+                                    fontWeight = if (isSel) FontWeight.Black else FontWeight.Medium
+                                )
+                                if (isSel) {
+                                    Text(
+                                        text = if (role == UserRole.HOD || role == UserRole.PRINCIPAL_DEAN) "AUTHORITY" else "SELECTED",
+                                        color = if (role == UserRole.HOD || role == UserRole.PRINCIPAL_DEAN) MineBananaYellow else MineEmerald,
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Black
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
                     Text("PASSWORD", color = MineDiamondBlue, fontSize = 10.sp, fontWeight = FontWeight.Black)
                     Spacer(modifier = Modifier.height(4.dp))
                     OutlinedTextField(
