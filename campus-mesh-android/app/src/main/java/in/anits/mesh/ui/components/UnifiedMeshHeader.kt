@@ -1,6 +1,7 @@
 package `in`.anits.mesh.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -17,6 +18,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import `in`.anits.mesh.data.UserProfile
+import `in`.anits.mesh.ui.theme.*
 
 @Composable
 fun UnifiedMeshHeader(
@@ -29,39 +31,47 @@ fun UnifiedMeshHeader(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .background(Color(0xFF141210))
+            .background(MeshSurface)
+            .border(width = 0.5.dp, color = MeshBorder)
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         // Banana App Brand + Title + Nodes in Chunk
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("🍌", fontSize = 24.sp)
-            Spacer(modifier = Modifier.width(8.dp))
+            Box(
+                modifier = Modifier
+                    .size(34.dp)
+                    .background(MeshSurfaceElevated, CircleShape)
+                    .border(1.dp, BananaGold.copy(alpha = 0.3f), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("🍌", fontSize = 18.sp)
+            }
+            Spacer(modifier = Modifier.width(10.dp))
             Column {
                 Text(
                     text = title,
-                    color = Color(0xFFFFE600),
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.Black,
-                    letterSpacing = 1.sp
+                    color = BananaGold,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.5.sp
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
                         modifier = Modifier
-                            .size(7.dp)
+                            .size(6.dp)
                             .background(
-                                color = if (peerCount > 0) Color(0xFF17DD62) else Color(0xFFFF3333),
+                                color = if (peerCount > 0) MintGreen else RoseAlert,
                                 shape = CircleShape
                             )
                     )
                     Spacer(modifier = Modifier.width(5.dp))
                     Text(
-                        text = if (peerCount > 0) "$peerCount NODES IN CHUNK" else "SEARCHING CHUNKS...",
-                        color = if (peerCount > 0) Color(0xFF17DD62) else Color(0xFF8696A0),
-                        fontSize = 8.5.sp,
-                        fontWeight = FontWeight.Black,
-                        letterSpacing = 0.5.sp
+                        text = if (peerCount > 0) "$peerCount Nodes Online" else "Discovering Nodes...",
+                        color = if (peerCount > 0) MintGreen else TextTertiary,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Medium
                     )
                 }
             }
@@ -71,38 +81,40 @@ fun UnifiedMeshHeader(
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
-                .background(Color(0xFF202C33), RoundedCornerShape(20.dp))
+                .background(MeshSurfaceElevated, RoundedCornerShape(20.dp))
+                .border(1.dp, MeshBorder, RoundedCornerShape(20.dp))
                 .clickable { onSwitchUser() }
-                .padding(horizontal = 10.dp, vertical = 6.dp)
+                .padding(horizontal = 10.dp, vertical = 5.dp)
         ) {
             Box(
                 modifier = Modifier
-                    .size(22.dp)
-                    .background(Color(0xFF25D366), CircleShape),
+                    .size(20.dp)
+                    .background(MintGreen.copy(alpha = 0.2f), CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = userProfile?.fullName?.take(1)?.uppercase() ?: "U",
-                    color = Color.Black,
-                    fontSize = 11.sp,
+                    color = MintGreen,
+                    fontSize = 10.sp,
                     fontWeight = FontWeight.Bold
                 )
             }
             Spacer(modifier = Modifier.width(6.dp))
             Text(
                 text = "${userProfile?.fullName ?: "User"} (${userProfile?.rollNumber ?: ""})",
-                color = Color.White,
-                fontSize = 12.sp,
+                color = TextPrimary,
+                fontSize = 11.5.sp,
                 fontWeight = FontWeight.Medium
             )
             Spacer(modifier = Modifier.width(4.dp))
             Icon(
                 Icons.Default.SwapHoriz,
                 contentDescription = "Switch Account / Logout",
-                tint = Color(0xFF25D366),
-                modifier = Modifier.size(16.dp)
+                tint = TextSecondary,
+                modifier = Modifier.size(15.dp)
             )
         }
     }
 }
+
 

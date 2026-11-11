@@ -140,6 +140,7 @@ fun MainScreen(
         Screen.Bulletins.route -> "CAMPUS RADIO"
         Screen.Chat.route -> "MESH CHAT"
         Screen.Map.route -> "MUSTER MAP"
+        Screen.Profile.route -> "SETTINGS & IDENTITY"
         else -> "CAMPUS MESH"
     }
 
@@ -158,7 +159,7 @@ fun MainScreen(
                 onNavigate = { route -> currentRoute = route }
             )
         },
-        containerColor = Color.Black
+        containerColor = MeshBackground
     ) { innerPadding ->
         Box(modifier = Modifier.padding(innerPadding)) {
             when (currentRoute) {
@@ -166,6 +167,7 @@ fun MainScreen(
                 Screen.Bulletins.route -> BulletinsScreen(viewModel = bulletinViewModel)
                 Screen.Chat.route -> ChatScreen(viewModel = chatViewModel, onSwitchUser = onSwitchUser)
                 Screen.Map.route -> MusterMapScreen()
+                Screen.Profile.route -> ProfileSettingsScreen(onLogout = onSwitchUser)
             }
         }
     }

@@ -19,13 +19,14 @@ import androidx.compose.ui.unit.sp
 import `in`.anits.mesh.ui.theme.*
 
 sealed class Screen(val route: String, val title: String, val icon: String, val accentColor: Color) {
-    object Sos : Screen("sos", "SOS", "🚨", MineRedstone)
-    object Bulletins : Screen("bulletins", "Radio", "📡", MineGold)
-    object Chat : Screen("chat", "Chat", "💬", MineEmerald)
-    object Map : Screen("map", "Map", "🗺️", MineDiamondBlue)
+    object Sos : Screen("sos", "SOS", "🚨", RoseAlert)
+    object Bulletins : Screen("bulletins", "Radio", "📡", BananaGold)
+    object Chat : Screen("chat", "Chat", "💬", MintGreen)
+    object Map : Screen("map", "Map", "🗺️", CyberCyan)
+    object Profile : Screen("profile", "Settings", "⚙️", TextSecondary)
 }
 
-val NavScreens = listOf(Screen.Sos, Screen.Bulletins, Screen.Chat, Screen.Map)
+val NavScreens = listOf(Screen.Sos, Screen.Bulletins, Screen.Chat, Screen.Map, Screen.Profile)
 
 @Composable
 fun MeshBottomNavigation(
@@ -33,47 +34,49 @@ fun MeshBottomNavigation(
     onNavigate: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    // Minecraft Hotbar Style Navigation
-    Row(
+    Surface(
         modifier = modifier
             .fillMaxWidth()
-            .background(MineDirtDark)
-            .border(width = 2.dp, color = MineStoneBorder)
-            .padding(horizontal = 12.dp, vertical = 6.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+        color = MeshSurfaceElevated,
+        shape = RoundedCornerShape(24.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, MeshBorder),
+        shadowElevation = 8.dp
     ) {
-        NavScreens.forEach { screen ->
-            val isSelected = (currentRoute == screen.route)
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(horizontal = 4.dp)
-                    .background(
-                        if (isSelected) MineStoneDark else Color.Transparent,
-                        RoundedCornerShape(6.dp)
-                    )
-                    .border(
-                        width = if (isSelected) 2.dp else 1.dp,
-                        color = if (isSelected) screen.accentColor else MineStoneBorder.copy(alpha = 0.5f),
-                        shape = RoundedCornerShape(6.dp)
-                    )
-                    .clickable { onNavigate(screen.route) }
-                    .padding(vertical = 6.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text = screen.icon,
-                        fontSize = 17.sp
-                    )
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = screen.title,
-                        color = if (isSelected) screen.accentColor else TextMuted,
-                        fontSize = 10.sp,
-                        fontWeight = if (isSelected) FontWeight.Black else FontWeight.Medium
-                    )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 6.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.SpaceAround,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            NavScreens.forEach { screen ->
+                val isSelected = (currentRoute == screen.route)
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 2.dp)
+                        .background(
+                            if (isSelected) screen.accentColor.copy(alpha = 0.15f) else Color.Transparent,
+                            RoundedCornerShape(16.dp)
+                        )
+                        .clickable { onNavigate(screen.route) }
+                        .padding(vertical = 8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = screen.icon,
+                            fontSize = 18.sp
+                        )
+                        Spacer(modifier = Modifier.height(3.dp))
+                        Text(
+                            text = screen.title,
+                            color = if (isSelected) screen.accentColor else TextTertiary,
+                            fontSize = 10.5.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                        )
+                    }
                 }
             }
         }

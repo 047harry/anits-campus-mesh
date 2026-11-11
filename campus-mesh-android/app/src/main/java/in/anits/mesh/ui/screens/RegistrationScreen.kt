@@ -47,7 +47,7 @@ fun RegistrationScreen(
 
     // Sign In Fields
     var loginRollNumber by remember { mutableStateOf("") }
-    var loginPassword by remember { mutableStateOf("") }
+    var loginPassword by remember { mutableStateOf("1234") }
     var loginPasswordVisible by remember { mutableStateOf(false) }
 
     // Sign Up Fields
@@ -55,8 +55,8 @@ fun RegistrationScreen(
     var rollNumber by remember { mutableStateOf("") }
     var department by remember { mutableStateOf("CSD") }
     var selectedRole by remember { mutableStateOf(UserRole.STUDENT_OCCUPANT) }
-    var signUpPassword by remember { mutableStateOf("") }
-    var confirmPassword by remember { mutableStateOf("") }
+    var signUpPassword by remember { mutableStateOf("1234") }
+    var confirmPassword by remember { mutableStateOf("1234") }
     var signUpPasswordVisible by remember { mutableStateOf(false) }
 
     var isLoading by remember { mutableStateOf(false) }
@@ -68,62 +68,61 @@ fun RegistrationScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(MineStoneDark)
+            .background(MeshBackground)
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp, vertical = 24.dp),
+            .padding(horizontal = 22.dp, vertical = 26.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
-        // Minecraft Blocky Banana Logo Badge
+        // Modern Rounded Banana Logo Badge
         Box(
             modifier = Modifier
-                .size(72.dp)
-                .background(MineDirtDark, RoundedCornerShape(12.dp))
-                .border(3.dp, MineBananaYellow, RoundedCornerShape(12.dp))
-                .shadow(6.dp, RoundedCornerShape(12.dp)),
+                .size(76.dp)
+                .background(MeshSurfaceElevated, RoundedCornerShape(22.dp))
+                .border(1.5.dp, BananaGold.copy(alpha = 0.4f), RoundedCornerShape(22.dp))
+                .shadow(8.dp, RoundedCornerShape(22.dp)),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 text = "🍌",
-                fontSize = 38.sp
+                fontSize = 40.sp
             )
         }
 
         Spacer(modifier = Modifier.height(14.dp))
 
-        // Pixel Title Header
         Text(
             text = "ANITS MESH",
-            color = MineBananaYellow,
-            fontSize = 24.sp,
-            fontWeight = FontWeight.Black,
-            letterSpacing = 1.5.sp
-        )
-        Text(
-            text = "DECENTRALIZED OFFLINE NETWORK",
-            color = MineDiamondBlue,
-            fontSize = 10.sp,
+            color = BananaGold,
+            fontSize = 22.sp,
             fontWeight = FontWeight.Bold,
-            letterSpacing = 2.sp
+            letterSpacing = 1.2.sp
+        )
+        Spacer(modifier = Modifier.height(2.dp))
+        Text(
+            text = "Autonomous Campus Disaster Grid",
+            color = TextSecondary,
+            fontSize = 11.5.sp,
+            fontWeight = FontWeight.Medium
         )
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(22.dp))
 
-        // Mode Switcher (Minecraft Inventory Tab Style)
+        // Mode Switcher (Clean Pill Toggle)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(MineDirtDark, RoundedCornerShape(8.dp))
-                .border(2.dp, MineStoneBorder, RoundedCornerShape(8.dp))
+                .background(MeshSurface, RoundedCornerShape(16.dp))
+                .border(1.dp, MeshBorder, RoundedCornerShape(16.dp))
                 .padding(4.dp)
         ) {
             Box(
                 modifier = Modifier
                     .weight(1f)
                     .background(
-                        if (authMode == AuthMode.SIGN_IN) MineGrassGreen else Color.Transparent,
-                        RoundedCornerShape(6.dp)
+                        if (authMode == AuthMode.SIGN_IN) MintGreen.copy(alpha = 0.2f) else Color.Transparent,
+                        RoundedCornerShape(12.dp)
                     )
                     .clickable {
                         authMode = AuthMode.SIGN_IN
@@ -134,10 +133,10 @@ fun RegistrationScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "🔑 SIGN IN",
-                    color = Color.White,
-                    fontWeight = FontWeight.Black,
-                    fontSize = 12.sp
+                    text = "Sign In",
+                    color = if (authMode == AuthMode.SIGN_IN) MintGreen else TextSecondary,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp
                 )
             }
 
@@ -145,8 +144,8 @@ fun RegistrationScreen(
                 modifier = Modifier
                     .weight(1f)
                     .background(
-                        if (authMode == AuthMode.SIGN_UP) MineGrassGreen else Color.Transparent,
-                        RoundedCornerShape(6.dp)
+                        if (authMode == AuthMode.SIGN_UP) MintGreen.copy(alpha = 0.2f) else Color.Transparent,
+                        RoundedCornerShape(12.dp)
                     )
                     .clickable {
                         authMode = AuthMode.SIGN_UP
@@ -157,10 +156,10 @@ fun RegistrationScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "⛏️ SIGN UP",
-                    color = Color.White,
-                    fontWeight = FontWeight.Black,
-                    fontSize = 12.sp
+                    text = "Create Account",
+                    color = if (authMode == AuthMode.SIGN_UP) MintGreen else TextSecondary,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp
                 )
             }
         }
@@ -176,45 +175,45 @@ fun RegistrationScreen(
                 onClick = {
                     authMode = AuthMode.SIGN_IN
                     loginRollNumber = "1"
-                    loginPassword = "anits"
+                    loginPassword = "1234"
                 },
-                colors = ButtonDefaults.buttonColors(containerColor = MineDirtDark),
-                shape = RoundedCornerShape(6.dp),
-                border = androidx.compose.foundation.BorderStroke(1.5.dp, MineEmerald),
+                colors = ButtonDefaults.buttonColors(containerColor = MeshSurface),
+                shape = RoundedCornerShape(12.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, MintGreen.copy(alpha = 0.5f)),
                 modifier = Modifier.weight(1f),
-                contentPadding = PaddingValues(vertical = 8.dp)
+                contentPadding = PaddingValues(vertical = 10.dp)
             ) {
-                Text("⚡ User a (1)", fontSize = 11.sp, color = MineEmerald, fontWeight = FontWeight.Bold)
+                Text("⚡ User a (1)", fontSize = 11.5.sp, color = MintGreen, fontWeight = FontWeight.Bold)
             }
 
             Button(
                 onClick = {
                     authMode = AuthMode.SIGN_IN
                     loginRollNumber = "2"
-                    loginPassword = "anits"
+                    loginPassword = "1234"
                 },
-                colors = ButtonDefaults.buttonColors(containerColor = MineDirtDark),
-                shape = RoundedCornerShape(6.dp),
-                border = androidx.compose.foundation.BorderStroke(1.5.dp, MineDiamondBlue),
+                colors = ButtonDefaults.buttonColors(containerColor = MeshSurface),
+                shape = RoundedCornerShape(12.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, CyberCyan.copy(alpha = 0.5f)),
                 modifier = Modifier.weight(1f),
-                contentPadding = PaddingValues(vertical = 8.dp)
+                contentPadding = PaddingValues(vertical = 10.dp)
             ) {
-                Text("⚡ User b (2)", fontSize = 11.sp, color = MineDiamondBlue, fontWeight = FontWeight.Bold)
+                Text("⚡ User b (2)", fontSize = 11.5.sp, color = CyberCyan, fontWeight = FontWeight.Bold)
             }
 
             Button(
                 onClick = {
                     authMode = AuthMode.SIGN_IN
                     loginRollNumber = "3"
-                    loginPassword = "anits"
+                    loginPassword = "1234"
                 },
-                colors = ButtonDefaults.buttonColors(containerColor = MineDirtDark),
-                shape = RoundedCornerShape(6.dp),
-                border = androidx.compose.foundation.BorderStroke(1.5.dp, MineGold),
+                colors = ButtonDefaults.buttonColors(containerColor = MeshSurface),
+                shape = RoundedCornerShape(12.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, BananaGold.copy(alpha = 0.5f)),
                 modifier = Modifier.weight(1f),
-                contentPadding = PaddingValues(vertical = 8.dp)
+                contentPadding = PaddingValues(vertical = 10.dp)
             ) {
-                Text("⚡ User c (3)", fontSize = 11.sp, color = MineGold, fontWeight = FontWeight.Bold)
+                Text("⚡ User c (3)", fontSize = 11.5.sp, color = BananaGold, fontWeight = FontWeight.Bold)
             }
         }
 
@@ -253,67 +252,67 @@ fun RegistrationScreen(
             }
         }
 
-        // Form Container (Minecraft Crafting GUI Style)
+        // Form Container (Smooth Rounded Card)
         Card(
-            colors = CardDefaults.cardColors(containerColor = MineDirtDark),
-            border = androidx.compose.foundation.BorderStroke(2.dp, MineStoneBorder),
-            shape = RoundedCornerShape(10.dp),
+            colors = CardDefaults.cardColors(containerColor = MeshSurface),
+            border = androidx.compose.foundation.BorderStroke(1.dp, MeshBorder),
+            shape = RoundedCornerShape(20.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
+            Column(modifier = Modifier.padding(20.dp)) {
                 if (authMode == AuthMode.SIGN_IN) {
                     // SIGN IN FIELDS
-                    Text("ROLL NUMBER / USER ID", color = MineDiamondBlue, fontSize = 10.sp, fontWeight = FontWeight.Black)
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Text("ROLL NUMBER / USER ID", color = TextSecondary, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+                    Spacer(modifier = Modifier.height(6.dp))
                     OutlinedTextField(
                         value = loginRollNumber,
                         onValueChange = { loginRollNumber = it },
-                        placeholder = { Text("e.g. 1, 2, or Roll No", color = TextMuted, fontSize = 12.sp) },
+                        placeholder = { Text("e.g. 1, 2, or Roll No", color = TextTertiary, fontSize = 13.sp) },
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White,
-                            focusedBorderColor = MineBananaYellow,
-                            unfocusedBorderColor = MineStoneBorder,
-                            focusedContainerColor = MineStoneDark,
-                            unfocusedContainerColor = MineStoneDark
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary,
+                            focusedBorderColor = MintGreen,
+                            unfocusedBorderColor = MeshBorder,
+                            focusedContainerColor = MeshSurfaceElevated,
+                            unfocusedContainerColor = MeshSurfaceElevated
                         ),
-                        shape = RoundedCornerShape(6.dp),
+                        shape = RoundedCornerShape(12.dp),
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
 
-                    Text("PASSWORD", color = MineDiamondBlue, fontSize = 10.sp, fontWeight = FontWeight.Black)
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Text("PASSWORD", color = TextSecondary, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+                    Spacer(modifier = Modifier.height(6.dp))
                     OutlinedTextField(
                         value = loginPassword,
                         onValueChange = { loginPassword = it },
-                        placeholder = { Text("Password", color = TextMuted, fontSize = 12.sp) },
+                        placeholder = { Text("Password", color = TextTertiary, fontSize = 13.sp) },
                         visualTransformation = if (loginPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                         trailingIcon = {
                             IconButton(onClick = { loginPasswordVisible = !loginPasswordVisible }) {
                                 Icon(
                                     if (loginPasswordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
                                     contentDescription = null,
-                                    tint = TextMuted
+                                    tint = TextSecondary
                                 )
                             }
                         },
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White,
-                            focusedBorderColor = MineBananaYellow,
-                            unfocusedBorderColor = MineStoneBorder,
-                            focusedContainerColor = MineStoneDark,
-                            unfocusedContainerColor = MineStoneDark
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary,
+                            focusedBorderColor = MintGreen,
+                            unfocusedBorderColor = MeshBorder,
+                            focusedContainerColor = MeshSurfaceElevated,
+                            unfocusedContainerColor = MeshSurfaceElevated
                         ),
-                        shape = RoundedCornerShape(6.dp),
+                        shape = RoundedCornerShape(12.dp),
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
 
-                    Spacer(modifier = Modifier.height(18.dp))
+                    Spacer(modifier = Modifier.height(20.dp))
 
                     Button(
                         onClick = {
@@ -335,64 +334,63 @@ fun RegistrationScreen(
                                 }
                             }
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = MineGrassGreen),
-                        shape = RoundedCornerShape(6.dp),
-                        border = androidx.compose.foundation.BorderStroke(2.dp, MineEmerald),
+                        colors = ButtonDefaults.buttonColors(containerColor = MintGreen),
+                        shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.fillMaxWidth().height(48.dp),
                         enabled = !isLoading
                     ) {
                         if (isLoading) {
-                            CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                            CircularProgressIndicator(color = Color.Black, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                         } else {
-                            Text("ENTER THE MESH ➔", color = Color.White, fontWeight = FontWeight.Black, fontSize = 13.sp)
+                            Text("Sign In to Mesh ➔", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                         }
                     }
                 } else {
                     // SIGN UP FIELDS
-                    Text("FULL NAME", color = MineDiamondBlue, fontSize = 10.sp, fontWeight = FontWeight.Black)
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Text("FULL NAME", color = TextSecondary, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+                    Spacer(modifier = Modifier.height(6.dp))
                     OutlinedTextField(
                         value = fullName,
                         onValueChange = { fullName = it },
-                        placeholder = { Text("e.g. Alex", color = TextMuted, fontSize = 12.sp) },
+                        placeholder = { Text("e.g. Alex", color = TextTertiary, fontSize = 13.sp) },
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White,
-                            focusedBorderColor = MineBananaYellow,
-                            unfocusedBorderColor = MineStoneBorder,
-                            focusedContainerColor = MineStoneDark,
-                            unfocusedContainerColor = MineStoneDark
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary,
+                            focusedBorderColor = MintGreen,
+                            unfocusedBorderColor = MeshBorder,
+                            focusedContainerColor = MeshSurfaceElevated,
+                            unfocusedContainerColor = MeshSurfaceElevated
                         ),
-                        shape = RoundedCornerShape(6.dp),
+                        shape = RoundedCornerShape(12.dp),
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
 
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
 
-                    Text("ROLL NUMBER / USER ID", color = MineDiamondBlue, fontSize = 10.sp, fontWeight = FontWeight.Black)
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Text("ROLL NUMBER / USER ID", color = TextSecondary, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+                    Spacer(modifier = Modifier.height(6.dp))
                     OutlinedTextField(
                         value = rollNumber,
                         onValueChange = { rollNumber = it },
-                        placeholder = { Text("e.g. 4 or 5", color = TextMuted, fontSize = 12.sp) },
+                        placeholder = { Text("e.g. 4 or 5", color = TextTertiary, fontSize = 13.sp) },
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White,
-                            focusedBorderColor = MineBananaYellow,
-                            unfocusedBorderColor = MineStoneBorder,
-                            focusedContainerColor = MineStoneDark,
-                            unfocusedContainerColor = MineStoneDark
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary,
+                            focusedBorderColor = MintGreen,
+                            unfocusedBorderColor = MeshBorder,
+                            focusedContainerColor = MeshSurfaceElevated,
+                            unfocusedContainerColor = MeshSurfaceElevated
                         ),
-                        shape = RoundedCornerShape(6.dp),
+                        shape = RoundedCornerShape(12.dp),
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
 
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
 
-                    Text("DEPARTMENT", color = MineDiamondBlue, fontSize = 10.sp, fontWeight = FontWeight.Black)
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Text("DEPARTMENT", color = TextSecondary, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+                    Spacer(modifier = Modifier.height(6.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -402,22 +400,22 @@ fun RegistrationScreen(
                             Box(
                                 modifier = Modifier
                                     .weight(1f)
-                                    .background(if (isSel) MineEmerald else MineStoneDark, RoundedCornerShape(6.dp))
-                                    .border(1.5.dp, if (isSel) MineBananaYellow else MineStoneBorder, RoundedCornerShape(6.dp))
+                                    .background(if (isSel) MintGreen.copy(alpha = 0.15f) else MeshSurfaceElevated, RoundedCornerShape(10.dp))
+                                    .border(1.dp, if (isSel) MintGreen else MeshBorder, RoundedCornerShape(10.dp))
                                     .clickable { department = dept }
-                                    .padding(vertical = 8.dp),
+                                    .padding(vertical = 10.dp),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text(dept, color = if (isSel) Color.Black else Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                                Text(dept, color = if (isSel) MintGreen else TextSecondary, fontWeight = FontWeight.Bold, fontSize = 11.5.sp)
                             }
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
 
                     // ROLE / CATEGORY SELECTOR (HOD, Warden, Principal, Student, etc.)
-                    Text("ROLE / CAMPUS DESIGNATION", color = MineDiamondBlue, fontSize = 10.sp, fontWeight = FontWeight.Black)
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Text("CAMPUS ROLE", color = TextSecondary, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+                    Spacer(modifier = Modifier.height(6.dp))
                     Column(
                         verticalArrangement = Arrangement.spacedBy(6.dp),
                         modifier = Modifier.fillMaxWidth()
@@ -434,62 +432,62 @@ fun RegistrationScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .background(
-                                        if (isSel) (if (role == UserRole.HOD || role == UserRole.PRINCIPAL_DEAN) MineGold.copy(alpha = 0.2f) else MineEmerald.copy(alpha = 0.2f))
-                                        else MineStoneDark,
-                                        shape = RoundedCornerShape(6.dp)
+                                        if (isSel) (if (role == UserRole.HOD || role == UserRole.PRINCIPAL_DEAN) BananaGold.copy(alpha = 0.15f) else MintGreen.copy(alpha = 0.15f))
+                                        else MeshSurfaceElevated,
+                                        shape = RoundedCornerShape(10.dp)
                                     )
                                     .border(
-                                        1.5.dp,
-                                        if (isSel) (if (role == UserRole.HOD || role == UserRole.PRINCIPAL_DEAN) MineBananaYellow else MineEmerald)
-                                        else MineStoneBorder,
-                                        shape = RoundedCornerShape(6.dp)
+                                        1.dp,
+                                        if (isSel) (if (role == UserRole.HOD || role == UserRole.PRINCIPAL_DEAN) BananaGold else MintGreen)
+                                        else MeshBorder,
+                                        shape = RoundedCornerShape(10.dp)
                                     )
                                     .clickable { selectedRole = role }
-                                    .padding(horizontal = 12.dp, vertical = 9.dp),
+                                    .padding(horizontal = 14.dp, vertical = 10.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Text(
                                     text = label,
-                                    color = if (isSel) Color.White else TextMuted,
-                                    fontSize = 11.5.sp,
-                                    fontWeight = if (isSel) FontWeight.Black else FontWeight.Medium
+                                    color = if (isSel) TextPrimary else TextSecondary,
+                                    fontSize = 12.sp,
+                                    fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium
                                 )
                                 if (isSel) {
                                     Text(
                                         text = if (role == UserRole.HOD || role == UserRole.PRINCIPAL_DEAN) "AUTHORITY" else "SELECTED",
-                                        color = if (role == UserRole.HOD || role == UserRole.PRINCIPAL_DEAN) MineBananaYellow else MineEmerald,
+                                        color = if (role == UserRole.HOD || role == UserRole.PRINCIPAL_DEAN) BananaGold else MintGreen,
                                         fontSize = 9.sp,
-                                        fontWeight = FontWeight.Black
+                                        fontWeight = FontWeight.Bold
                                     )
                                 }
                             }
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
 
-                    Text("PASSWORD", color = MineDiamondBlue, fontSize = 10.sp, fontWeight = FontWeight.Black)
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Text("PASSWORD", color = TextSecondary, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+                    Spacer(modifier = Modifier.height(6.dp))
                     OutlinedTextField(
                         value = signUpPassword,
                         onValueChange = { signUpPassword = it },
-                        placeholder = { Text("Set a password", color = TextMuted, fontSize = 12.sp) },
+                        placeholder = { Text("Set a password (e.g. 1234)", color = TextTertiary, fontSize = 13.sp) },
                         visualTransformation = if (signUpPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White,
-                            focusedBorderColor = MineBananaYellow,
-                            unfocusedBorderColor = MineStoneBorder,
-                            focusedContainerColor = MineStoneDark,
-                            unfocusedContainerColor = MineStoneDark
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary,
+                            focusedBorderColor = MintGreen,
+                            unfocusedBorderColor = MeshBorder,
+                            focusedContainerColor = MeshSurfaceElevated,
+                            unfocusedContainerColor = MeshSurfaceElevated
                         ),
-                        shape = RoundedCornerShape(6.dp),
+                        shape = RoundedCornerShape(12.dp),
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(20.dp))
 
                     Button(
                         onClick = {
@@ -519,16 +517,15 @@ fun RegistrationScreen(
                                 }
                             }
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = MineGrassGreen),
-                        shape = RoundedCornerShape(6.dp),
-                        border = androidx.compose.foundation.BorderStroke(2.dp, MineEmerald),
+                        colors = ButtonDefaults.buttonColors(containerColor = MintGreen),
+                        shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.fillMaxWidth().height(48.dp),
                         enabled = !isLoading
                     ) {
                         if (isLoading) {
-                            CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                            CircularProgressIndicator(color = Color.Black, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                         } else {
-                            Text("CREATE IDENTITY & JOIN ➔", color = Color.White, fontWeight = FontWeight.Black, fontSize = 12.sp)
+                            Text("Create Identity & Join ➔", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 13.5.sp)
                         }
                     }
                 }
