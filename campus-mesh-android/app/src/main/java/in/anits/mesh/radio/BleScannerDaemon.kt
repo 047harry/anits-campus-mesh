@@ -39,6 +39,7 @@ class BleScannerDaemon(
 
     private var scanner: BluetoothLeScanner? = null
     private var isScanning = false
+    private var scanRestartJob: Job? = null
 
     private val _isCrisisMode = MutableStateFlow(false)
     val isCrisisMode: StateFlow<Boolean> = _isCrisisMode.asStateFlow()
@@ -81,17 +82,49 @@ class BleScannerDaemon(
             .build()
 
         try {
-            // Scan without restrictive hardware filters so all advertisements are received
-            scanner?.startScan(null, settings, scanCallback)
+            val filter = ScanFilter.Builder()
+                .setManufacturerData(ANITS_MANUFACTURER_ID, byteArrayOf())
+                .build()
+            scanner?.startScan(listOf(filter), settings, scanCallback)
             isScanning = true
-            Log.i(TAG, "✓ Real Hardware BLE Scanner started in LOW_LATENCY mode")
+            Log.i(TAG, "✓ Real Hardware BLE Scanner started with hardware filter in LOW_LATENCY mode")
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to start BLE scan: ${e.message}", e)
+            try {
+                scanner?.startScan(null, settings, scanCallback)
+                isScanning = true
+                Log.i(TAG, "✓ Real Hardware BLE Scanner started in fallback mode")
+            } catch (e2: Exception) {
+                Log.e(TAG, "Failed to start BLE scan: ${e2.message}", e2)
+            }
+        }
+
+        // Active Scan Cycling Loop: Restart scan every 12 seconds to bypass OS 30-minute lockouts and firmware stalls
+        scanRestartJob?.cancel()
+        scanRestartJob = coroutineScope.launch(Dispatchers.IO) {
+            while (isActive && isScanning) {
+                delay(12_000L)
+                try {
+                    scanner?.stopScan(scanCallback)
+                    delay(250L)
+                    val currentSettings = ScanSettings.Builder()
+                        .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+                        .setReportDelay(0)
+                        .build()
+                    val currentFilter = ScanFilter.Builder()
+                        .setManufacturerData(ANITS_MANUFACTURER_ID, byteArrayOf())
+                        .build()
+                    scanner?.startScan(listOf(currentFilter), currentSettings, scanCallback)
+                } catch (e: Exception) {
+                    // Safe continue
+                }
+            }
         }
     }
 
     @SuppressLint("MissingPermission")
     fun stop() {
+        scanRestartJob?.cancel()
+        scanRestartJob = null
         if (isScanning) {
             try {
                 scanner?.stopScan(scanCallback)
