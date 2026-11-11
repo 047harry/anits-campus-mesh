@@ -182,6 +182,27 @@ class UdpMeshTransport(
                     UserManager.registerKnownPeer(senderRoll, senderName)
                 }
 
+                // Register peer as physically active in direct/UDP range!
+                if (senderRoll.isNotBlank() && !senderRoll.equals(myRoll, ignoreCase = true)) {
+                    try {
+                        val senderRole = json.optInt("senderRole", `in`.anits.mesh.model.UserRole.STUDENT_OCCUPANT.code.toInt()).toByte()
+                        database.peerDao().upsertPeer(
+                            `in`.anits.mesh.data.entity.PeerEntity(
+                                nodeId = senderRoll,
+                                macAddress = "UDP:LAN",
+                                rollNumber = senderRoll,
+                                userRole = senderRole,
+                                isTrusted = (senderRole <= `in`.anits.mesh.model.UserRole.FACULTY_WARDEN.code),
+                                rssi = -45, // Direct high-speed LAN signal
+                                radioType = "Wi-Fi / LAN UDP",
+                                lastSeenEpoch = System.currentTimeMillis()
+                            )
+                        )
+                    } catch (e: Exception) {
+                        // Safe continue
+                    }
+                }
+
                 // Decrypt payload if end-to-end encrypted for 1-to-1 private chat
                 if (isEncrypted && !isBroadcast) {
                     val keySeed = CryptoEngine.derivePairwiseKey(senderRoll, myRoll)

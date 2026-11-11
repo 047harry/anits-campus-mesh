@@ -118,6 +118,32 @@ class RadioCoordinator(
         bleGattTransport.start()
         // rfcommTransport.start()
 
+        // Continuous local presence beacon across Wi-Fi LAN UDP (every 4 seconds)
+        coroutineScope.launch(Dispatchers.IO) {
+            while (isActive && _isMeshActive.value) {
+                try {
+                    val p = UserManager.getProfile(context)
+                    if (p != null && p.rollNumber.isNotBlank()) {
+                        val beaconJson = org.json.JSONObject().apply {
+                            put("uuid", java.util.UUID.randomUUID().toString())
+                            put("packetType", `in`.anits.mesh.model.PacketType.HEARTBEAT_DISCOVERY.code.toInt())
+                            put("senderRoll", p.rollNumber)
+                            put("senderName", p.fullName)
+                            put("senderRole", p.role.code.toInt())
+                            put("destRoll", "ALL PEERS")
+                            put("text", "")
+                            put("hopCount", 0)
+                            put("ttl", 1) // Local 1-hop presence beacon
+                        }
+                        udpTransport.broadcastJson(beaconJson.toString())
+                    }
+                } catch (e: Exception) {
+                    // Safe continue
+                }
+                delay(4000L)
+            }
+        }
+
         Log.i(TAG, "✓ Hardware Mesh Services (BLE GATT + BLE Beacon + LAN UDP) started successfully")
     }
 

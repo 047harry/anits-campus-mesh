@@ -52,6 +52,7 @@ object UserManager {
     private const val KEY_PASS_HASH = "pass_hash"
     private const val KEY_CACHED_DIR_JSON = "cached_directory_json"
     private var appContext: Context? = null
+    private var syncJobStarted = false
 
     // Supabase FinalDance Project Config
     const val SUPABASE_URL = "https://ilpmxbeuhdtobwpgzgcf.supabase.co"
@@ -141,14 +142,24 @@ object UserManager {
                 val mySummary = CampusUserSummary(prof.rollNumber, prof.fullName, prof.department, prof.role, prof.nodeId, prof.publicKeyHex)
                 _campusDirectory.value = _campusDirectory.value + (prof.rollNumber to mySummary) + (prof.nodeId to mySummary)
             }
-            // Auto-sync profile and directory in background on start
-            CoroutineScope(Dispatchers.IO).launch {
-                val p = _currentUser.value ?: loadProfile(context)
-                val passHash = prefs.getString(KEY_PASS_HASH, "") ?: ""
-                if (p != null) {
-                    syncUserToCloud(p, passHash)
+            // Continuous auto-sync with Supabase server whenever online
+            if (!syncJobStarted) {
+                syncJobStarted = true
+                CoroutineScope(Dispatchers.IO).launch {
+                    while (true) {
+                        try {
+                            val p = _currentUser.value ?: appContext?.let { loadProfile(it) }
+                            val passHash = appContext?.let { getPrefs(it).getString(KEY_PASS_HASH, "") } ?: ""
+                            if (p != null) {
+                                syncUserToCloud(p, passHash)
+                            }
+                            syncCampusDirectory()
+                        } catch (e: Exception) {
+                            // Offline - safe continue
+                        }
+                        kotlinx.coroutines.delay(8_000L) // Auto-sync continuously every 8s
+                    }
                 }
-                syncCampusDirectory()
             }
         }
         return registered
@@ -324,8 +335,33 @@ object UserManager {
     }
 
     fun logout(context: Context) {
+        val oldProfile = _currentUser.value
         getPrefs(context).edit().clear().apply()
         _currentUser.value = null
+
+        // Unlink device on server so this device is no longer mapped to the logged-out user
+        if (oldProfile != null) {
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    val url = URL("$SUPABASE_URL/rest/v1/campus_users?roll_number=eq.${oldProfile.rollNumber}")
+                    val conn = url.openConnection() as HttpURLConnection
+                    conn.requestMethod = "PATCH"
+                    conn.setRequestProperty("apikey", SUPABASE_ANON_KEY)
+                    conn.setRequestProperty("Authorization", "Bearer $SUPABASE_ANON_KEY")
+                    conn.setRequestProperty("Content-Type", "application/json")
+                    conn.connectTimeout = 5000
+                    conn.doOutput = true
+                    val body = JSONObject().apply {
+                        put("node_id", "offline")
+                    }
+                    conn.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+                    conn.responseCode
+                    conn.disconnect()
+                } catch (e: Exception) {
+                    // Safe
+                }
+            }
+        }
     }
 
     suspend fun syncCampusDirectory() = withContext(Dispatchers.IO) {

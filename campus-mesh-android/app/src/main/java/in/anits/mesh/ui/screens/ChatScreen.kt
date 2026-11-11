@@ -3,6 +3,9 @@ package `in`.anits.mesh.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -84,7 +87,8 @@ fun ChatScreen(
                 conversations = conversations,
                 onSelectConversation = { viewModel.openConversation(it) },
                 onOpenNewChat = { showNewChatDialog = true },
-                onSwitchUser = onSwitchUser
+                onSwitchUser = onSwitchUser,
+                onDeleteConversation = { viewModel.deleteConversation(it.conversationId) }
             )
         } else {
             // Screen 2: WhatsApp Chat Room (Inside a conversation)
@@ -121,9 +125,11 @@ fun WhatsAppInboxView(
     conversations: List<ChatConversation>,
     onSelectConversation: (ChatConversation) -> Unit,
     onOpenNewChat: () -> Unit,
-    onSwitchUser: (() -> Unit)? = null
+    onSwitchUser: (() -> Unit)? = null,
+    onDeleteConversation: (ChatConversation) -> Unit = {}
 ) {
     var searchQuery by remember { mutableStateOf("") }
+    var conversationToDelete by remember { mutableStateOf<ChatConversation?>(null) }
 
     val generalBroadcast = conversations.firstOrNull { it.isBroadcast }
     val directChats = conversations.filter { !it.isBroadcast }
@@ -148,6 +154,44 @@ fun WhatsAppInboxView(
             it.rollNumber.contains(searchQuery, ignoreCase = true) ||
             it.department.contains(searchQuery, ignoreCase = true)
         }
+    }
+
+    conversationToDelete?.let { conv ->
+        AlertDialog(
+            onDismissRequest = { conversationToDelete = null },
+            containerColor = WhatsAppHeader,
+            titleContentColor = Color.White,
+            textContentColor = WhatsAppTextMuted,
+            title = {
+                Text(
+                    text = if (conv.isBroadcast) "Clear General Broadcast?" else "Delete chat with ${conv.title}?",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp
+                )
+            },
+            text = {
+                Text(
+                    text = "This will delete all messages and remove this chat from your device.",
+                    fontSize = 13.5.sp
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onDeleteConversation(conv)
+                        conversationToDelete = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444))
+                ) {
+                    Text("Delete", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { conversationToDelete = null }) {
+                    Text("Cancel", color = WhatsAppTextMuted)
+                }
+            }
+        )
     }
 
     Scaffold(
@@ -301,7 +345,8 @@ fun WhatsAppInboxView(
                         )
                         GeneralBroadcastRow(
                             conversation = generalBroadcast,
-                            onClick = { onSelectConversation(generalBroadcast) }
+                            onClick = { onSelectConversation(generalBroadcast) },
+                            onLongClick = { conversationToDelete = generalBroadcast }
                         )
                         HorizontalDivider(color = WhatsAppBorder, thickness = 0.5.dp, modifier = Modifier.padding(vertical = 6.dp))
                     }
@@ -329,7 +374,8 @@ fun WhatsAppInboxView(
                     items(filteredDirectChats) { conv ->
                         WhatsAppConversationRow(
                             conversation = conv,
-                            onClick = { onSelectConversation(conv) }
+                            onClick = { onSelectConversation(conv) },
+                            onLongClick = { conversationToDelete = conv }
                         )
                     }
                 }
@@ -350,7 +396,8 @@ fun WhatsAppInboxView(
                     items(filteredMultiHopChats) { conv ->
                         WhatsAppConversationRow(
                             conversation = conv,
-                            onClick = { onSelectConversation(conv) }
+                            onClick = { onSelectConversation(conv) },
+                            onLongClick = { conversationToDelete = conv }
                         )
                     }
                 }
@@ -1028,15 +1075,20 @@ fun WhatsAppBubble(
 // =========================================================================
 // CONVERSATION ROW ITEMS
 // =========================================================================
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun GeneralBroadcastRow(
     conversation: ChatConversation,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onLongClick: () -> Unit = {}
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            )
             .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -1106,15 +1158,20 @@ fun GeneralBroadcastRow(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun WhatsAppConversationRow(
     conversation: ChatConversation,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onLongClick: () -> Unit = {}
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            )
             .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

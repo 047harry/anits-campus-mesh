@@ -72,4 +72,16 @@ interface MessageDao {
      */
     @Query("UPDATE table_messages SET is_read = 1 WHERE message_uuid = :uuid")
     suspend fun markMessageRead(uuid: String)
+
+    /**
+     * Delete all messages for a specific conversation from this local device only.
+     */
+    @Query("DELETE FROM table_messages WHERE packet_type = 3 AND (source_id = :conversationId OR dest_id = :conversationId)")
+    suspend fun deleteConversationMessages(conversationId: String)
+
+    /**
+     * Delete all broadcast messages from this local device.
+     */
+    @Query("DELETE FROM table_messages WHERE packet_type = 3 AND dest_id = 'BROADCAST'")
+    suspend fun deleteBroadcastMessages()
 }

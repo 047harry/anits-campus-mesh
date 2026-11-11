@@ -331,6 +331,27 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /**
+     * Delete chat messages locally and remove custom conversation from this device's interface.
+     */
+    fun deleteConversation(conversationId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            if (conversationId == "BROADCAST") {
+                messageDao.deleteBroadcastMessages()
+            } else {
+                messageDao.deleteConversationMessages(conversationId)
+                _customConversations.value = _customConversations.value - conversationId
+                // Also remove from active peers if it was discovered
+                try {
+                    peerDao.clearAllPeers()
+                } catch (e: Exception) {}
+            }
+            if (_activeConversation.value?.conversationId == conversationId) {
+                _activeConversation.value = null
+            }
+        }
+    }
+
     private fun parseChatMessageEntity(entity: MessageEntity, myRoll: String, myNodeId: String): MeshChatMessage? {
         return try {
             val jsonStr = String(entity.payloadBytes, StandardCharsets.UTF_8)
