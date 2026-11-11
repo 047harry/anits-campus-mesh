@@ -30,43 +30,38 @@ fun GoldShieldNoticeCard(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(color = SurfaceDark, shape = RoundedCornerShape(12.dp))
-            .border(width = 1.5.dp, color = AuthorityGold, shape = RoundedCornerShape(12.dp))
+            .background(color = Color(0xFF1F2C34), shape = RoundedCornerShape(10.dp))
+            .border(width = 1.dp, color = Color(0xFFFFE600), shape = RoundedCornerShape(10.dp))
             .padding(14.dp)
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Icon(
-                imageVector = Icons.Default.Security,
-                contentDescription = "Gold Shield Authority",
-                tint = AuthorityGold,
-                modifier = Modifier.size(22.dp)
-            )
+            Text("🛡️", fontSize = 18.sp)
             Spacer(modifier = Modifier.width(8.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = senderName,
-                    color = TextPrimary,
-                    fontSize = 15.sp,
+                    color = Color.White,
+                    fontSize = 14.sp,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
                     text = "$senderRole • $timestampText",
-                    color = AuthorityGold,
-                    fontSize = 12.sp,
+                    color = Color(0xFFFFE600),
+                    fontSize = 11.sp,
                     fontWeight = FontWeight.Medium
                 )
             }
             Box(
                 modifier = Modifier
-                    .background(color = Color.White.copy(alpha = 0.1f), shape = RoundedCornerShape(6.dp))
-                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                    .background(color = Color(0xFF25D366).copy(alpha = 0.2f), shape = RoundedCornerShape(6.dp))
+                    .padding(horizontal = 7.dp, vertical = 3.dp)
             ) {
                 Text(
-                    text = "$hopCount Hops",
-                    color = TextMuted,
+                    text = if (hopCount == 0) "Direct" else "$hopCount Hops",
+                    color = Color(0xFF25D366),
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -77,9 +72,9 @@ fun GoldShieldNoticeCard(
 
         Text(
             text = content,
-            color = TextPrimary,
-            fontSize = 14.sp,
-            lineHeight = 20.sp
+            color = Color.White,
+            fontSize = 13.5.sp,
+            lineHeight = 19.sp
         )
 
         Spacer(modifier = Modifier.height(10.dp))
@@ -88,20 +83,20 @@ fun GoldShieldNoticeCard(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .fillMaxWidth()
-                .background(color = AuthorityGoldDark.copy(alpha = 0.25f), shape = RoundedCornerShape(6.dp))
-                .padding(horizontal = 8.dp, vertical = 4.dp)
+                .background(color = Color(0xFF141E24), shape = RoundedCornerShape(6.dp))
+                .padding(horizontal = 8.dp, vertical = 5.dp)
         ) {
             Icon(
                 imageVector = Icons.Default.CheckCircle,
                 contentDescription = "Verified",
-                tint = MeshGreen,
-                modifier = Modifier.size(14.dp)
+                tint = Color(0xFF25D366),
+                modifier = Modifier.size(13.dp)
             )
             Spacer(modifier = Modifier.width(6.dp))
             Text(
                 text = "Cryptographically Verified Offline via Root PKI Ring",
-                color = TextMuted,
-                fontSize = 10.5.sp,
+                color = Color(0xFF8696A0),
+                fontSize = 10.sp,
                 fontWeight = FontWeight.Medium
             )
         }

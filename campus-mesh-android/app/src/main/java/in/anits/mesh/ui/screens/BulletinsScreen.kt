@@ -21,9 +21,7 @@ import androidx.compose.ui.window.Dialog
 import `in`.anits.mesh.data.UserManager
 import `in`.anits.mesh.model.UserRole
 import `in`.anits.mesh.ui.components.GoldShieldNoticeCard
-import `in`.anits.mesh.ui.theme.AuthorityGold
-import `in`.anits.mesh.ui.theme.SurfaceBorder
-import `in`.anits.mesh.ui.theme.SurfaceDark
+import `in`.anits.mesh.ui.theme.*
 import `in`.anits.mesh.viewmodel.BulletinViewModel
 
 @Composable
@@ -44,34 +42,53 @@ fun BulletinsScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color.Black, shape = RoundedCornerShape(16.dp))
-                    .border(2.dp, AuthorityGold, shape = RoundedCornerShape(16.dp))
+                    .background(Color(0xFF141210), shape = RoundedCornerShape(12.dp))
+                    .border(2.dp, Color(0xFFFFE600), shape = RoundedCornerShape(12.dp))
                     .padding(20.dp)
             ) {
                 Column {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Campaign, contentDescription = null, tint = AuthorityGold)
+                        Text("📢", fontSize = 20.sp)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Broadcast Evacuation Directive", color = Color.White, fontWeight = FontWeight.Black, fontSize = 15.sp)
+                        Text(
+                            "Broadcast Authority Bulletin",
+                            color = Color(0xFFFFE600),
+                            fontWeight = FontWeight.Black,
+                            fontSize = 15.sp
+                        )
                     }
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text("Notice will be cryptographically signed with your Ed25519 Authority Key and flooded across all student devices.", color = Color(0xFF94A3B8), fontSize = 11.sp, lineHeight = 14.sp)
+                    Text(
+                        "This directive will flood across all nearby peer devices in the mesh with priority delivery.",
+                        color = Color(0xFF8696A0),
+                        fontSize = 11.sp,
+                        lineHeight = 14.sp
+                    )
 
                     Spacer(modifier = Modifier.height(14.dp))
 
                     OutlinedTextField(
                         value = directiveText,
                         onValueChange = { directiveText = it },
-                        placeholder = { Text("e.g. Earthquake aftershock: North Stairwell clear. Evacuate to Cricket Ground triage tent.", color = Color(0xFF64748B), fontSize = 12.sp) },
+                        placeholder = {
+                            Text(
+                                "e.g. Earthquake aftershock: North stairwell clear. Evacuate to Central Ground.",
+                                color = Color(0xFF8696A0),
+                                fontSize = 12.sp
+                            )
+                        },
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(110.dp),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedTextColor = Color.White,
                             unfocusedTextColor = Color.White,
-                            focusedBorderColor = AuthorityGold,
-                            unfocusedBorderColor = SurfaceBorder
-                        )
+                            focusedBorderColor = Color(0xFFFFE600),
+                            unfocusedBorderColor = Color(0xFF222D34),
+                            focusedContainerColor = Color(0xFF202C33),
+                            unfocusedContainerColor = Color(0xFF202C33)
+                        ),
+                        shape = RoundedCornerShape(8.dp)
                     )
 
                     Spacer(modifier = Modifier.height(16.dp))
@@ -81,7 +98,7 @@ fun BulletinsScreen(
                         horizontalArrangement = Arrangement.End
                     ) {
                         TextButton(onClick = { showBroadcastDialog = false }) {
-                            Text("CANCEL", color = Color(0xFF94A3B8))
+                            Text("CANCEL", color = Color(0xFF8696A0), fontWeight = FontWeight.Bold)
                         }
                         Spacer(modifier = Modifier.width(8.dp))
                         Button(
@@ -92,9 +109,10 @@ fun BulletinsScreen(
                                     showBroadcastDialog = false
                                 }
                             },
-                            colors = ButtonDefaults.buttonColors(containerColor = AuthorityGold)
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF25D366)),
+                            shape = RoundedCornerShape(8.dp)
                         ) {
-                            Text("SIGN & BROADCAST", color = Color.Black, fontWeight = FontWeight.Black)
+                            Text("BROADCAST ➔", color = Color(0xFF0B141A), fontWeight = FontWeight.Black)
                         }
                     }
                 }
@@ -105,7 +123,7 @@ fun BulletinsScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(Color.Black)
+            .background(Color(0xFF0B141A))
             .padding(16.dp)
     ) {
         Row(
@@ -114,16 +132,27 @@ fun BulletinsScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column {
-                Text("OFFICIAL BULLETINS", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Black)
-                Text("CRYPTOGRAPHICALLY VERIFIED OFFLINE", color = AuthorityGold, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    text = "CAMPUS RADIO BULLETINS",
+                    color = Color.White,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Black,
+                    letterSpacing = 0.5.sp
+                )
+                Text(
+                    text = "AUTHORITY EMERGENCY BROADCASTS",
+                    color = Color(0xFF25D366),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold
+                )
             }
 
             if (isAuthority) {
                 Button(
                     onClick = { showBroadcastDialog = true },
-                    colors = ButtonDefaults.buttonColors(containerColor = AuthorityGold),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFE600)),
                     shape = RoundedCornerShape(8.dp),
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
                 ) {
                     Text("📢 Broadcast", color = Color.Black, fontWeight = FontWeight.Black, fontSize = 11.5.sp)
                 }
@@ -132,7 +161,7 @@ fun BulletinsScreen(
 
         Spacer(modifier = Modifier.height(14.dp))
 
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             items(bulletins) { notice ->
                 GoldShieldNoticeCard(
                     senderName = notice.senderName,

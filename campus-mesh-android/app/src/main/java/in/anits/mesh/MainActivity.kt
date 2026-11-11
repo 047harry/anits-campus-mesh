@@ -35,6 +35,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import `in`.anits.mesh.ui.components.MeshStatusBar
+import `in`.anits.mesh.ui.components.UnifiedMeshHeader
 import `in`.anits.mesh.ui.navigation.MeshBottomNavigation
 import `in`.anits.mesh.ui.navigation.Screen
 import `in`.anits.mesh.ui.screens.*
@@ -134,76 +135,22 @@ fun MainScreen(
     val battery by mainViewModel.batteryLevel.collectAsState()
     val userProfile by UserManager.currentUser.collectAsState()
 
+    val screenTitle = when (currentRoute) {
+        Screen.Sos.route -> "CAMPUS SOS"
+        Screen.Bulletins.route -> "CAMPUS RADIO"
+        Screen.Chat.route -> "MESH CHAT"
+        Screen.Map.route -> "MUSTER MAP"
+        else -> "CAMPUS MESH"
+    }
+
     Scaffold(
         topBar = {
-            // Only show the system status bar and identity strip on non-Chat screens (SOS, Bulletins, Map).
-            // On ChatScreen, a clean, clutter-free WhatsApp-style header is rendered directly!
-            if (currentRoute != Screen.Chat.route) {
-                Column {
-                    MeshStatusBar(
-                        peerCount = peerCount,
-                        batteryPercent = battery,
-                        isBlackoutActive = isBlackout
-                    )
-
-                    // User Identity Strip
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(Color(0xFF0F172A))
-                            .border(1.dp, Color(0xFF1E293B))
-                            .padding(horizontal = 14.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(26.dp)
-                                    .background(
-                                        if (userProfile?.role == UserRole.HOD) AuthorityGold else DirectBlue,
-                                        shape = CircleShape
-                                    ),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = userProfile?.fullName?.split(" ")?.mapNotNull { it.firstOrNull() }?.take(2)?.joinToString("") ?: "U",
-                                    color = Color.White,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Black
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Column {
-                                Text(
-                                    text = "${userProfile?.fullName ?: "ANITS User"} (${userProfile?.rollNumber ?: "N/A"})",
-                                    color = Color.White,
-                                    fontSize = 11.5.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    text = "Role: ${userProfile?.role?.title ?: "Student"} • Dept: ${userProfile?.department ?: "CSD"}",
-                                    color = if (userProfile?.role == UserRole.HOD) AuthorityGold else Color(0xFF94A3B8),
-                                    fontSize = 9.5.sp,
-                                    fontWeight = FontWeight.Medium
-                                )
-                            }
-                        }
-
-                        IconButton(
-                            onClick = onSwitchUser,
-                            modifier = Modifier.size(28.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.SwapHoriz,
-                                contentDescription = "Switch User / Re-register",
-                                tint = Color(0xFF94A3B8),
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                    }
-                }
-            }
+            UnifiedMeshHeader(
+                title = screenTitle,
+                peerCount = peerCount,
+                userProfile = userProfile,
+                onSwitchUser = onSwitchUser
+            )
         },
         bottomBar = {
             MeshBottomNavigation(
